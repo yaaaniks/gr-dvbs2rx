@@ -1,25 +1,15 @@
-/* -*- c++ -*- */
-/*
- * Copyright (c) 2021 Igor Freire.
- *
- * This file is part of gr-dvbs2rx.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+#include "pl_correlator.h"
+#include <boost/format.hpp>
 
 #include "debug_level.h"
-#include "pl_frame_sync.h"
-#include "util.h"
-#include <boost/format.hpp>
-#include <algorithm>
-#include <cassert>
 
 namespace gr {
 namespace dvbs2rx {
 
-frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
-    : pl_submodule("frame_sync", debug_level),
-      d_unlock_thresh(unlock_thresh),
+
+pl_correlator::pl_correlator(int debug_level, float threshold, int frame_threshold)
+    : pl_submodule("pl_correlator", debug_level),
+      d_unlock_thresh(frame_threshold),
       d_sym_cnt(0),
       d_last_in(0),
       d_timing_metric(0.0),
@@ -34,6 +24,9 @@ frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
       d_plheader_buf(PLHEADER_LEN),
       d_payload_buf(MAX_PLFRAME_PAYLOAD)
 {
+    /*NOTE - These taps for cross-correlation are based on differential approach
+    //? differential approach
+    */
     /* SOF and PLSC matched filter (correlator) taps: the folded (or reversed)
      * version of the target SOF and PLSC symbols */
     d_sof_taps = { { 0, -1.0 }, { 0, -1.0 }, { 0, -1.0 }, { 0, -1.0 }, { 0, 1.0 },
@@ -56,14 +49,21 @@ frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
     assert(d_plsc_o_buf.length() == d_plsc_taps.size());
 }
 
-void frame_sync::correlate(delay_line<gr_complex>& d_line,
-                           volk::vector<gr_complex>& taps,
-                           gr_complex* res)
+gr_complex pl_correlator::get_timing_metric() { return d_timing_metric; }
+
+void pl_correlator::correlate(delay_line<gr_complex>& d_line,
+                              volk::vector<gr_complex>& taps,
+                              gr_complex& res)
 {
-    volk_32fc_x2_dot_prod_32fc(res, &d_line.back(), taps.data(), d_line.length());
+    volk_32fc_x2_dot_prod_32fc(&res, &d_line.back(), taps.data(), d_line.length());
+}
+void pl_correlator::calculate_pearson(const std::vector<gr_complex>& input,
+                                      const std::vector<gr_complex>& taps,
+                                      gr_complex& res)
+{
 }
 
-bool frame_sync::step(const gr_complex& in)
+bool pl_correlator::step(const gr_complex& in)
 {
     d_sym_cnt++;
     /* NOTE: this index resets by the end of the PLHEADER, so it is 1 for the
@@ -115,28 +115,31 @@ bool frame_sync::step(const gr_complex& in)
      * pairs of PLSC symbols. At this point, we can't tell whether the pairs
      * start on even d_sym_cnt or odd d_sym_cnt. Hence, we need to try both.
      **/
-    if (d_sym_cnt & 1)
+    if (d_sym_cnt & 1) {
         d_plsc_o_buf.push(diff);
-    else
+    } else {
         d_plsc_e_buf.push(diff);
+    }
 
     /* Everything past this point is only necessary exactly when the correlators
      * are expected to peak. If a PLFRAME has been found already (i.e., we are
      * locked or almost locked), proceed only if this is the expected timing for
      * the next PLFRAME timing peak. */
-    if (locked && (d_sym_cnt < d_frame_len))
+    if (locked && (d_sym_cnt < d_frame_len)) {
         return false;
+    }
 
     /* SOF correlation */
     gr_complex sof_corr;
-    correlate(d_sof_buf, d_sof_taps, &sof_corr);
+    this->correlate(d_sof_buf, d_sof_taps, sof_corr);
 
     /* PLSC correlation */
     gr_complex plsc_corr;
-    if (d_sym_cnt & 1)
-        correlate(d_plsc_o_buf, d_plsc_taps, &plsc_corr);
-    else
-        correlate(d_plsc_e_buf, d_plsc_taps, &plsc_corr);
+    if (d_sym_cnt & 1) {
+        this->correlate(d_plsc_o_buf, d_plsc_taps, plsc_corr);
+    } else {
+        this->correlate(d_plsc_e_buf, d_plsc_taps, plsc_corr);
+    }
 
     /* Final timing metric
      *
@@ -242,13 +245,13 @@ bool frame_sync::step(const gr_complex& in)
     return (is_peak || peak_expected) && (d_state != frame_sync_state_t::searching);
 }
 
-void frame_sync::set_frame_len(uint32_t len)
+void pl_correlator::set_frame_len(uint32_t len)
 {
-    GR_LOG_DEBUG_LEVEL(1, "New frame length is set:{:d}", len);
-    if (len > MAX_PLFRAME_LEN)
-        throw std::runtime_error("Invalid PLFRAME length");
+    // if (len > MAX_PLFRAME_LEN) {
+    //     throw std::runtime_error("Invalid PLFRAME length");
+    // }
     d_frame_len = len;
 }
 
-} // namespace dvbs2rx
-} // namespace gr
+}; // namespace dvbs2rx
+}; // namespace gr

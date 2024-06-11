@@ -29,6 +29,7 @@ list(APPEND dvbs2rx_python_files
     rotator_cc_python.cc
     symbol_sync_cc_python.cc
     xfecframe_demapper_cb_python.cc
+    plframer_cc_python.cc
     python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(dvbs2rx

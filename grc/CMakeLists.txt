@@ -15,5 +15,6 @@ install(FILES
     dvbs2rx_rotator_cc.block.yml
     dvbs2rx_symbol_sync_cc.block.yml
     dvbs2rx_xfecframe_demapper_cb.block.yml
+    dvbs2rx_plframer_cc.block.yml
     DESTINATION share/gnuradio/grc/blocks
 )

@@ -1,0 +1,57 @@
+id: dvbs2rx_plframer_cc
+label: DVB-S2 PL Framer
+category: "[Core]/Digital Television/DVB-S2"
+
+templates:
+  imports: from gnuradio import dvbs2rx
+  make: dvbs2rx.plframer_cc(${gold_code}, ${sps}, ${debug_level},
+    ${acm_vcm}, ${pls_filter_lo}, ${pls_filter_hi}, ${pls_code})
+
+parameters:
+  - id: gold_code
+    label: Gold code
+    dtype: int
+    default: 0
+  - id: sps
+    label: MF Oversampling
+    dtype: real
+    default: 2.0
+  - id: debug_level
+    label: Debug Level
+    dtype: int
+    default: 0
+  - id: acm_vcm
+    label: ACM/VCM mode
+    dtype: bool
+    default: "True"
+  - id: pls_filter_lo
+    label: PLS filter (LSB)
+    dtype: hex
+    default: "0xFFFFFFFFFFFFFFFF"
+  - id: pls_filter_hi
+    label: PLS filter (MSB)
+    dtype: hex
+    default: "0xFFFFFFFFFFFFFFFF"
+  - id: pls_code
+    label: PLSC Bit sequence
+    dtype: int
+    default: 0
+
+inputs:
+  - label: in
+    domain: stream
+    dtype: complex
+    vlen: 1
+    optional: 0
+
+outputs:
+  - label: out
+    domain: stream
+    dtype: complex
+    vlen: 1
+    optional: 0
+  - domain: message
+    id: corr
+    optional: true
+
+file_format: 1

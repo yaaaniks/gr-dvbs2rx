@@ -19,5 +19,6 @@ install(FILES
     rotator_cc.h
     symbol_sync_cc.h
     xfecframe_demapper_cb.h
+    plframer_cc.h
     DESTINATION include/gnuradio/dvbs2rx
 )
