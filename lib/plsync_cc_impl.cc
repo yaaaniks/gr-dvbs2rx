@@ -948,8 +948,6 @@ int plsync_cc_impl::general_work(int noutput_items,
             full_output = n_produced == noutput_items;
         }
     }
-    GR_LOG_DEBUG_LEVEL(
-        1, "Consumed items: {:d}; Produced items: {:d}", n_consumed, n_produced);
     // Tell runtime system how many input/output items were consumed/produced.
     consume_each(n_consumed);
     return n_produced;

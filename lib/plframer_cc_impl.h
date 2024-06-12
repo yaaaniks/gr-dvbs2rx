@@ -6,6 +6,8 @@
 #include "pl_correlator.h"
 #include "gnuradio/dvbs2rx/plframer_cc.h"
 #include <gnuradio/gr_complex.h>
+#include <gnuradio/types.h>
+#include <cstdint>
 
 namespace gr {
 namespace dvbs2rx {
@@ -16,27 +18,11 @@ private:
     /* Parameters */
     int d_debug_level;  /** debug level */
     const double d_sps; /** samples per symbol */
-    uint64_t d_pls_filter_lo{ 0xFFFFFFFFFFFFFFFF };
-    uint64_t d_pls_filter_hi{ 0xFFFFFFFFFFFFFFFF };
-    /* NOTE: the PLSYNC block requires a symbol-spaced stream at its
-     * input. Hence, sps does not refer to the input stream. Instead, it
-     * refers to the oversampling ratio that is adopted in the receiver
-     * flowgraph prior to the matched filter. This is so that this block
-     * can control the external rotator phase properly */
-    bool d_acm_vcm;                                      /**< ACM/VCM mode */
-    std::array<uint8_t, n_plsc_codewords> d_pls_enabled; /** PLSs to process */
-    bool d_plsc_decoder_enabled{ true }; /**< Whether the PLSC decoder is enabled */
 
     /* State */
-    bool d_locked{ false };      /**< Whether the frame timing is locked */
-    bool d_closed_loop{ false }; /**< Whether any freq. correction has been applied to the
-                             external rotator. False while still waiting for the first
-                             correction (i.e., while effectively in open loop) */
-    gr_complex d_phase_corr;
-    payload_state_t d_payload_state{
-        payload_state_t::searching
-    }; /**< Payload processing state machine */
-    plframe_idx_t d_idx; /**< PLFRAME index state */
+    bool d_locked{ false };          /**< Whether the frame timing is locked */
+    payload_state_t d_payload_state; /**< Payload processing state machine */
+    plframe_idx_t d_idx;             /**< PLFRAME index state */
 
     /* Frame counts */
     uint64_t d_sof_cnt{ 0 };      /**< Total detected SOFs (including false-positives) */
@@ -46,21 +32,21 @@ private:
 
     /* Frame metadata from the current PLFRAME (whose payload may be under processing if
      * locked) and from the next PLFRAME (the PLHEADER ahead, processed in advance). */
-    plframe_info_t d_curr_frame_info; /**< PLFRAME under processing */
-    plframe_info_t d_next_frame_info; /**< Next PLFRAME */
+    plframe_info_t d_plframe_info; /**< PLFRAME under processing */
 
     // Constant PLS info used in CCM/SIS mode
-    pls_info_t d_ccm_sis_pls;
+    pls_info_t* d_ccm_sis_pls{ nullptr };
 
-    plsc_decoder* d_plsc_decoder{ nullptr };     /**< PLSC decoder */
-    plsc_encoder* d_plsc_encoder{ nullptr };     /*< PLSC encoder */
-    freq_sync* d_freq_sync{ nullptr };           /*< Frequency synchronizer*/
+    /* Physical layer instances */
+    plsc_decoder* d_plsc_decoder{ nullptr }; /**< PLSC decoder */
+    plsc_encoder* d_plsc_encoder{ nullptr }; /**< PLSC encoder */
+
     pl_descrambler* d_pl_descrambler{ nullptr }; /**< PL descrambler */
     pl_correlator* d_pl_correlator{ nullptr };
 
-    volk::vector<gr_complex> pp_plheader; /**< derotated PLHEADER symbols */
-
     const pmt::pmt_t d_port_id = pmt::mp("pls_corr");
+
+private:
     /**
      * @brief Process a PLHEADER.
      * @param abs_sof_idx (uint64_t) Absolute index where the PLHEADER starts.
@@ -90,45 +76,30 @@ private:
     int handle_payload(int noutput_items,
                        gr_complex* out,
                        const gr_complex* p_payload,
-                       plframe_info_t& frame_info,
-                       const plframe_info_t& next_frame_info);
+                       plframe_info_t& frame_info);
 
-    void derotate_plheader(const gr_complex* in, bool open_loop);
-
-    /**
-     * \brief Estimate the average phase of the SOF.
-     * \param in (gr_complex *) Pointer to the SOF symbol array.
-     * \return (float) The phase estimate in radians within -pi to +pi.
-     */
-    float estimate_sof_phase(const gr_complex* in);
-    float estimate_phase_data_aided(const gr_complex* in,
-                                    const gr_complex* expected,
-                                    unsigned int len);
+    void send_corr_factor(float&& corr);
 
 public:
-    plframer_cc_impl(int gold_code,
-                     double sps,
-                     int debug_level,
-                     bool acm_vcm,
-                     uint64_t pls_filter_lo,
-                     uint64_t pls_filter_hi,
-                     uint64_t pls_code);
+    plframer_cc_impl(int gold_code, double sps, int debug_level, uint8_t pls_code);
     ~plframer_cc_impl();
-
-    // Where all the action really happens
     void forecast(int noutput_items, gr_vector_int& ninput_items_required);
-    void send_message(gr_complex&& corr);
-
     int general_work(int noutput_items,
                      gr_vector_int& ninput_items,
                      gr_vector_const_void_star& input_items,
                      gr_vector_void_star& output_items);
 
-    bool get_locked() { return d_locked; }
-    uint64_t get_sof_count() { return d_sof_cnt; }
-    uint64_t get_frame_count() { return d_frame_cnt; }
-    uint64_t get_rejected_count() { return d_rejected_cnt; }
-    uint64_t get_dummy_count() { return d_dummy_cnt; }
+    bool get_locked() const { return d_locked; }
+
+    uint64_t get_sof_count() const { return d_sof_cnt; }
+    uint64_t get_frame_count() const { return d_frame_cnt; }
+    uint64_t get_rejected_count() const { return d_rejected_cnt; }
+    uint64_t get_dummy_count() const { return d_dummy_cnt; }
+
+    std::chrono::system_clock::time_point get_lock_time() const
+    {
+        return d_pl_correlator->get_lock_time();
+    };
 };
 
 }; // namespace dvbs2rx

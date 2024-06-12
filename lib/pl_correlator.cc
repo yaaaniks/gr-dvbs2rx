@@ -1,7 +1,12 @@
 #include "pl_correlator.h"
 #include <boost/format.hpp>
+#include <cmath>
+#include <numeric>
+#include <vector>
 
-#include "debug_level.h"
+#include "../debug_level.h"
+#include "../pl_defs.h"
+#include <gnuradio/gr_complex.h>
 
 namespace gr {
 namespace dvbs2rx {
@@ -22,7 +27,8 @@ pl_correlator::pl_correlator(int debug_level, float threshold, int frame_thresho
       d_plsc_e_buf(PLSC_CORR_LEN),
       d_plsc_o_buf(PLSC_CORR_LEN),
       d_plheader_buf(PLHEADER_LEN),
-      d_payload_buf(MAX_PLFRAME_PAYLOAD)
+      d_payload_buf(MAX_PLFRAME_PAYLOAD),
+      d_pearson_buf(MAX_PLFRAME_PAYLOAD)
 {
     /*NOTE - These taps for cross-correlation are based on differential approach
     //? differential approach
@@ -49,18 +55,35 @@ pl_correlator::pl_correlator(int debug_level, float threshold, int frame_thresho
     assert(d_plsc_o_buf.length() == d_plsc_taps.size());
 }
 
-gr_complex pl_correlator::get_timing_metric() { return d_timing_metric; }
-
 void pl_correlator::correlate(delay_line<gr_complex>& d_line,
                               volk::vector<gr_complex>& taps,
                               gr_complex& res)
 {
     volk_32fc_x2_dot_prod_32fc(&res, &d_line.back(), taps.data(), d_line.length());
 }
+
 void pl_correlator::calculate_pearson(const std::vector<gr_complex>& input,
                                       const std::vector<gr_complex>& taps,
                                       gr_complex& res)
 {
+    std::vector<gr_complex> x_bar, y_bar;
+
+    x_bar.reserve(input.size());
+    y_bar.reserve(taps.size());
+
+    auto x_mean = std::accumulate(input.begin(), input.end(), gr_complex{ 0, 0 }) /
+                  static_cast<float>(input.size());
+    auto y_mean = std::accumulate(taps.begin(), taps.end(), gr_complex{ 0, 0 }) /
+                  static_cast<float>(taps.size());
+
+    for (int i = 0; i < input.size(); i++) {
+        x_bar[i] = input[i] - x_mean;
+        y_bar[i] = taps[i] - y_mean;
+    }
+
+    gr_complex Rxx, Ryy, Rxy;
+    // matrix product
+    res = Rxy / std::sqrt(Rxx.real() * Ryy.real());
 }
 
 bool pl_correlator::step(const gr_complex& in)

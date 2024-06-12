@@ -41,11 +41,24 @@ void bind_plframer_cc(py::module& m)
              py::arg("gold_code"),
              py::arg("sps"),
              py::arg("debug_level"),
-             py::arg("acm_vcm"),
-             py::arg("pls_filter_lo"),
-             py::arg("pls_filter_hi"),
              py::arg("pls_code"),
              D(plframer_cc, make))
 
-        ;
+        .def("get_locked", &plframer_cc::get_locked, D(plframer_cc, get_locked))
+
+        .def("get_sof_count", &plframer_cc::get_sof_count, D(plframer_cc, get_sof_count))
+
+        .def("get_frame_count",
+             &plframer_cc::get_frame_count,
+             D(plframer_cc, get_frame_count))
+
+        .def("get_rejected_count",
+             &plframer_cc::get_rejected_count,
+             D(plframer_cc, get_rejected_count))
+
+        .def("get_dummy_count",
+             &plframer_cc::get_dummy_count,
+             D(plframer_cc, get_dummy_count))
+
+        .def("get_lock_time", &plframer_cc::get_lock_time, D(plframer_cc, get_lock_time));
 }

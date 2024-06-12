@@ -7,6 +7,7 @@
 
 #include <gnuradio/gr_complex.h>
 #include <gnuradio/types.h>
+#include <volk/volk_alloc.hh>
 #include <vector>
 
 namespace gr {
@@ -23,7 +24,6 @@ public:
 
     bool step(const gr_complex& in);
 
-    gr_complex get_timing_metric();
     inline bool is_locked() const { return d_state == frame_sync_state_t::locked; }
 
     void set_frame_len(uint32_t len);
@@ -130,7 +130,7 @@ private:
     volk::vector<gr_complex> d_payload_buf;  /**< Buffer to store the PLFRAME payload */
     volk::vector<gr_complex> d_sof_taps;     /**< SOF cross-correlation taps */
     volk::vector<gr_complex> d_plsc_taps;    /**< PLSC cross-correlation taps */
-
+    volk::vector<gr_complex> d_pearson_buf;
     /* Timing metric threshold for inferring a start of frame.
      *
      * When unlocked, use a conservative threshold, as it is important

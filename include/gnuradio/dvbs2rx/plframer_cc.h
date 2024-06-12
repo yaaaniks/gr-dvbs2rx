@@ -40,16 +40,7 @@ public:
      * \param gold_code (int) Gold code used for physical layer scrambling.
      * \param sps (double) Oversampling ratio at the input to the upstream MF.
      * \param debug_level (int) Debug level.
-     * \param acm_vcm (bool) Whether running in ACM/VCM mode. Determines whether the PLS
-     * filter can include multiple options.
-     * \param pls_filter_lo (uint64_t) Lower 64 bits of the PLS filter bitmask. A value of
-     * 1 in the n-th position indicates PLS "n" (for n in 0 to 63) should be enabled.
-     * \param pls_filter_hi (uint64_t) Upper 64 bits of the PLS filter bitmask. A value of
-     * 1 in the n-th position indicates PLS "n" (for n in 64 to 127) should be enabled.
-     * \param pls_code (uint64_t) PLS Code.
-     * \note When `acm_vcm=false`, the constructor throws an exception if `pls_filter_lo`
-     * and `pls_filter_hi` collectively select more than one PLS value (i.e., if their
-     * aggregate population count is greater than one).
+     * \param pls_code (uint64_t) PLSC bit sequence.
      *
      * \note The oversampling ratio (sps) parameter is only used to schedule phase
      * increment updates (i.e., frequency corrections) to an external rotator. This block
@@ -60,13 +51,56 @@ public:
      * block uses the sps paramter to adjust the symbol-spaced sample offset of a PLFRAME
      * to the corresponding fractionally-spaced offset in the rotator's input.
      */
-    static sptr make(int gold_code,
-                     double sps,
-                     int debug_level,
-                     bool acm_vcm,
-                     uint64_t pls_filter_lo,
-                     uint64_t pls_filter_hi,
-                     uint64_t pls_code);
+    static sptr make(int gold_code, double sps, int debug_level, uint8_t pls_code);
+
+    /*!
+     * \brief Get the current lock status.
+     * \return (bool) True when the frame synchronizer is locked.
+     */
+    virtual bool get_locked() const = 0;
+
+    /*!
+     * \brief Get the current count of detected start-of-frame (SOF) instants.
+     *
+     * This count includes all detected SOFs, including false positives. Note that
+     * detecting a SOF does not mean that instant will lead to a processed frame. Frames
+     * are only processed after frame timing lock, which requires two consecutive SOFs
+     * detected with the correct interval between them. Hence, the SOF count is always
+     * greater than or equal to the processed frame count.
+     *
+     * \return (uint64_t) Detected SOF count.
+     */
+    virtual uint64_t get_sof_count() const = 0;
+
+    /*!
+     * \brief Get the current count of processed (accepted) PLFRAMEs.
+     *
+     * A PLFRAME is processed after frame timing lock and after being accepted by the PLS
+     * filter, in which case its XFECFRAME is output to the next block. Frames rejected by
+     * the PLS filter and dummy frames are not included in this count.
+     *
+     * \return (uint64_t) Processed frame count.
+     */
+    virtual uint64_t get_frame_count() const = 0;
+
+    /*!
+     * \brief Get the current count of rejected PLFRAMEs.
+     * \return (uint64_t) Rejected frame count.
+     */
+    virtual uint64_t get_rejected_count() const = 0;
+
+    /*!
+     * \brief Get the current count of received dummy PLFRAMEs.
+     * \return (uint64_t) Dummy frame count.
+     */
+    virtual uint64_t get_dummy_count() const = 0;
+
+    /*!
+     * \brief Get the timestamp of the last frame synchronization lock.
+     * \return (std::chrono::system_clock::time_point) Last frame lock timestamp in UTC.
+     * \note The timestamp is only valid after the first frame lock.
+     */
+    virtual std::chrono::system_clock::time_point get_lock_time() const = 0;
 };
 
 }; // namespace dvbs2rx

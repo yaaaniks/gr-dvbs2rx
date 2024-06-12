@@ -21,6 +21,7 @@ list(APPEND dvbs2rx_sources
     bch_decoder_bb_impl.cc
     pl_correlator.cc
     plframer_cc_impl.cc
+    phase_detector.cc
     bch.cc
     fec_params.cc
     gf.cc
@@ -37,6 +38,8 @@ list(APPEND dvbs2rx_sources
     util.cc
     xfecframe_demapper_cb_impl.cc
 )
+
+add_subdirectory(framer)
 
 set(dvbs2rx_sources "${dvbs2rx_sources}" PARENT_SCOPE)
 if(NOT dvbs2rx_sources)

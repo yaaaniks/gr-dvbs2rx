@@ -13,3 +13,21 @@ static const char* __doc_gr_dvbs2rx_plframer_cc_plframer_cc = R"doc()doc";
 
 
 static const char* __doc_gr_dvbs2rx_plframer_cc_make = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_locked = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_sof_count = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_frame_count = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_rejected_count = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_dummy_count = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plframer_cc_get_lock_time = R"doc()doc";
