@@ -39,11 +39,18 @@ void bind_plframer_cc(py::module& m)
 
         .def(py::init(&plframer_cc::make),
              py::arg("gold_code"),
+             py::arg("freq_est_period"),
              py::arg("sps"),
              py::arg("debug_level"),
              py::arg("pls_code"),
              D(plframer_cc, make))
+        .def("get_freq_offset",
+             &plframer_cc::get_freq_offset,
+             D(plframer_cc, get_freq_offset))
 
+        .def("get_coarse_freq_corr_state",
+             &plframer_cc::get_coarse_freq_corr_state,
+             D(plframer_cc, get_coarse_freq_corr_state))
         .def("get_locked", &plframer_cc::get_locked, D(plframer_cc, get_locked))
 
         .def("get_sof_count", &plframer_cc::get_sof_count, D(plframer_cc, get_sof_count))

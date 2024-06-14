@@ -4,13 +4,17 @@ category: "[Core]/Digital Television/DVB-S2"
 
 templates:
   imports: from gnuradio import dvbs2rx
-  make: dvbs2rx.plframer_cc(${gold_code}, ${sps}, ${debug_level}, ${pls_code})
+  make: dvbs2rx.plframer_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
 
 parameters:
   - id: gold_code
     label: Gold code
     dtype: int
     default: 0
+  - id: freq_est_period
+    label: Freq. Estimation Period
+    dtype: int
+    default: 10
   - id: sps
     label: MF Oversampling
     dtype: real

@@ -23,6 +23,7 @@ options:
     sizing_mode: fixed
     thread_safe_setters: ''
     title: DVB-S2 Tx/Rx Simulation
+    window_size: (1000,1000)
   states:
     bus_sink: false
     bus_source: false
@@ -289,12 +290,12 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: in_file
+    file: /home/semikozov/code/radio/test/example.ts
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
     offset: '0'
-    repeat: 'True'
+    repeat: 'False'
     type: byte
     vlen: '1'
   states:
@@ -304,6 +305,22 @@ blocks:
     coordinate: [32, 468.0]
     rotation: 0
     state: enabled
+- name: blocks_float_to_complex_0
+  id: blocks_float_to_complex
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [296, 736.0]
+    rotation: 0
+    state: disabled
 - name: blocks_null_sink_0
   id: blocks_null_sink
   parameters:
@@ -356,7 +373,25 @@ blocks:
     bus_structure: null
     coordinate: [432, 612.0]
     rotation: 180
-    state: true
+    state: enabled
+- name: blocks_wavfile_source_0
+  id: blocks_wavfile_source
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    file: /home/semikozov/code/radio/test/SDRuno_20240531_082354Z_1199978kHz.wav
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nchan: '2'
+    repeat: 'True'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [48, 736.0]
+    rotation: 0
+    state: disabled
 - name: debug
   id: parameter
   parameters:
@@ -664,7 +699,7 @@ blocks:
     bus_structure: null
     coordinate: [600, 604.0]
     rotation: 180
-    state: true
+    state: enabled
 - name: modcod
   id: parameter
   parameters:
@@ -1243,7 +1278,7 @@ blocks:
     bus_structure: null
     coordinate: [208, 612.0]
     rotation: 180
-    state: true
+    state: enabled
 - name: virtual_source_1_0_0
   id: virtual_source
   parameters:
@@ -1256,14 +1291,17 @@ blocks:
     bus_structure: null
     coordinate: [48, 868.0]
     rotation: 0
-    state: true
+    state: enabled
 
 connections:
 - [analog_noise_source_x_0, '0', blocks_add_xx_0, '1']
 - [blocks_add_xx_0, '0', dvbs2rx_rx_hier_0, '0']
 - [blocks_file_source_0_0, '0', dtv_dvb_bbheader_bb_0, '0']
+- [blocks_float_to_complex_0, '0', blocks_rotator_cc_foffset_sim, '0']
 - [blocks_rotator_cc_foffset_sim, '0', blocks_add_xx_0, '0']
 - [blocks_throttle_0, '0', virtual_sink_1_0, '0']
+- [blocks_wavfile_source_0, '0', blocks_float_to_complex_0, '0']
+- [blocks_wavfile_source_0, '1', blocks_float_to_complex_0, '1']
 - [dtv_dvb_bbheader_bb_0, '0', dtv_dvb_bbscrambler_bb_0, '0']
 - [dtv_dvb_bbscrambler_bb_0, '0', dtv_dvb_bch_bb_0, '0']
 - [dtv_dvb_bch_bb_0, '0', dtv_dvb_ldpc_bb_0, '0']
@@ -1282,3 +1320,4 @@ connections:
 
 metadata:
   file_format: 1
+  grc_version: 3.10.9.2

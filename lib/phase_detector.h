@@ -11,9 +11,9 @@
 
 #include <gnuradio/gr_complex.h>
 
-#include "../pl_freq_sync.h"
-#include "../pl_submodule.h"
-#include "../plsync_cc_impl.h"
+#include "pl_freq_sync.h"
+#include "pl_submodule.h"
+#include "plsync_cc_impl.h"
 
 namespace gr {
 namespace dvbs2rx {

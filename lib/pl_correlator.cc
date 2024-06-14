@@ -4,8 +4,8 @@
 #include <numeric>
 #include <vector>
 
-#include "../debug_level.h"
-#include "../pl_defs.h"
+#include "debug_level.h"
+#include "pl_defs.h"
 #include <gnuradio/gr_complex.h>
 
 namespace gr {

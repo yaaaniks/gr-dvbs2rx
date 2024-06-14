@@ -51,7 +51,23 @@ public:
      * block uses the sps paramter to adjust the symbol-spaced sample offset of a PLFRAME
      * to the corresponding fractionally-spaced offset in the rotator's input.
      */
-    static sptr make(int gold_code, double sps, int debug_level, uint8_t pls_code);
+    static sptr make(int gold_code,
+                     int freq_est_period,
+                     double sps,
+                     int debug_level,
+                     uint8_t pls_code);
+
+    /*!
+     * \brief Get the current frequency offset estimate.
+     * \return (float) Frequency offset.
+     */
+    virtual float get_freq_offset() const = 0;
+
+    /*!
+     * \brief Get the coarse frequency offset correction state.
+     * \return (bool) True when the frequency offset is coarsely corrected.
+     */
+    virtual bool get_coarse_freq_corr_state() const = 0;
 
     /*!
      * \brief Get the current lock status.

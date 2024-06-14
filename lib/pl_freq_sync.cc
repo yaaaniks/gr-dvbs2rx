@@ -188,7 +188,7 @@ bool freq_sync::estimate_coarse(const gr_complex* in, bool full, uint8_t plsc)
      * offset falls within the fine correction range */
     coarse_corrected = abs(coarse_foffset) < fine_foffset_corr_range;
 
-    GR_LOG_DEBUG_LEVEL(2, "Frequency offset estimation:");
+    GR_LOG_DEBUG_LEVEL(2, "- Frequency offset estimation:");
     GR_LOG_DEBUG_LEVEL(2, "- Coarse frequency offset: {:g}", coarse_foffset);
     GR_LOG_DEBUG_LEVEL(2, "- Coarse corrected: {:d}", coarse_corrected);
 

@@ -39,8 +39,6 @@ list(APPEND dvbs2rx_sources
     xfecframe_demapper_cb_impl.cc
 )
 
-add_subdirectory(framer)
-
 set(dvbs2rx_sources "${dvbs2rx_sources}" PARENT_SCOPE)
 if(NOT dvbs2rx_sources)
     MESSAGE(STATUS "No C++ sources... skipping lib/")

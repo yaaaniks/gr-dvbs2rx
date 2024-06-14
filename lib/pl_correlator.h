@@ -1,8 +1,8 @@
 #ifndef PL_CORRELATOR_INCLUDED
 #define PL_CORRELATOR_INCLUDED
 
-#include "../pl_frame_sync.h"
-#include "../pl_submodule.h"
+#include "pl_frame_sync.h"
+#include "pl_submodule.h"
 #include "gnuradio/dvbs2rx/api.h"
 
 #include <gnuradio/gr_complex.h>
