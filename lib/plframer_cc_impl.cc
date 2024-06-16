@@ -7,57 +7,42 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include "gnuradio/dvbs2rx/plframer_cc.h"
+#include <cstring>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include "debug_level.h"
-#include "plsync_cc_impl.h"
+#include "plframer_cc_impl.h"
+
 #include <gnuradio/expj.h>
 #include <gnuradio/io_signature.h>
 #include <gnuradio/math.h>
+#include <cstdint>
 #include <set>
 
 namespace gr {
 namespace dvbs2rx {
 
-plsync_cc::sptr plsync_cc::make(int gold_code,
-                                int freq_est_period,
-                                double sps,
-                                int debug_level,
-                                bool acm_vcm,
-                                bool multistream,
-                                uint64_t pls_filter_lo,
-                                uint64_t pls_filter_hi)
+plframer_cc::sptr plframer_cc::make(
+    int gold_code, int freq_est_period, double sps, int debug_level, uint8_t pls_code)
 {
-    return gnuradio::get_initial_sptr(new plsync_cc_impl(gold_code,
-                                                         freq_est_period,
-                                                         sps,
-                                                         debug_level,
-                                                         acm_vcm,
-                                                         multistream,
-                                                         pls_filter_lo,
-                                                         pls_filter_hi));
+    return gnuradio::get_initial_sptr(
+        new plframer_cc_impl(gold_code, freq_est_period, sps, debug_level, pls_code));
 }
 
 
 /*
  * The private constructor
  */
-plsync_cc_impl::plsync_cc_impl(int gold_code,
-                               int freq_est_period,
-                               double sps,
-                               int debug_level,
-                               bool acm_vcm,
-                               bool multistream,
-                               uint64_t pls_filter_lo,
-                               uint64_t pls_filter_hi)
-    : gr::block("plsync_cc",
+plframer_cc_impl::plframer_cc_impl(
+    int gold_code, int freq_est_period, double sps, int debug_level, uint8_t pls_code)
+    : gr::block("plframer_cc",
                 gr::io_signature::make(1, 1, sizeof(gr_complex)),
                 gr::io_signature::make(1, 1, sizeof(gr_complex))),
       d_debug_level(debug_level),
       d_sps(sps),
-      d_acm_vcm(acm_vcm),
       d_plsc_decoder_enabled(true),
       d_locked(false),
       d_closed_loop(false),
@@ -69,19 +54,6 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
       d_rejected_cnt(0),
       d_dummy_cnt(0)
 {
-    // Validate the PLS filters based on their population counts (Hamming weights)
-    //
-    // NOTE: a popcnt of 2 is ok in CCM if the target PLSs differ on the pilots flag only.
-    // This is verified in the sequel after the PLS filters are parsed. On the other hand,
-    // a popcnt greater than 2 is certainly a problem in CCM mode.
-    uint64_t popcnt1, popcnt2;
-    volk_64u_popcnt(&popcnt1, pls_filter_lo);
-    volk_64u_popcnt(&popcnt2, pls_filter_hi);
-    if (!acm_vcm && (popcnt1 + popcnt2) > 2)
-        throw std::runtime_error(
-            "PLS filter configured for multiple MODCOD or frame sizes in CCM mode");
-    if ((popcnt1 + popcnt2) == 0)
-        throw std::runtime_error("At least one PLS should be enabled in the filters");
 
     // PLS filters
     //
@@ -104,47 +76,15 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
     //   stream, dummy frames must be expected and processed by the PLSC decoder). See the
     //   second row in Table D.2 of the standard.
     std::vector<uint8_t> expected_plsc;
-    for (uint8_t pls = 0; pls < n_plsc_codewords; pls++) {
-        bool enabled = (pls < 64) ? (pls_filter_lo & (1ULL << pls))
-                                  : (pls_filter_hi & (1ULL << (pls - 64)));
-        d_pls_enabled[pls] = enabled;
-        if (enabled) {
-            expected_plsc.push_back(pls);
-        }
-    }
-
-    // In CCM mode, up to two PLSs are allowed, as long as they refer to the same MODCOD
-    // and frame size (differring only on the pilots flag).
-    if (!acm_vcm && expected_plsc.size() == 2) {
-        pls_info_t info1(expected_plsc[0]);
-        pls_info_t info2(expected_plsc[1]);
-        if (info1.modcod != info2.modcod ||
-            info1.short_fecframe != info2.short_fecframe) {
-            throw std::runtime_error(
-                "A single MODCOD and frame size should be selected in "
-                "CCM mode");
-        }
-    }
-    // Include the PLSs of the dummy PLFRAMEs allowed in MIS or ACM/VCM mode
-    //
-    // Dummy PLFRAMES have modcod=0, so the corresponding PLS should be 0. However, there
-    // are no guarantees that the Tx sets short_fecframe=0 and pilots=0 when sending dummy
-    // frames, so PLS values from 0 to 3 can be expected (TODO: confirm).
-    if (multistream || acm_vcm) {
-        for (uint8_t pls = 0; pls < 4; pls++) {
-            // Add if not enabled in the pls_filter already:
-            if (!(pls_filter_lo & (1 << pls))) {
-                expected_plsc.push_back(pls);
-            }
-        }
-    }
+    expected_plsc.push_back(pls_code);
+    d_pls_enabled[pls_code] = true;
     // If a single PLS is expected in the end (CCM/SIS mode with pilot configuration
     // known), then cache the constant PLS info and simply disable the PLSC decoder. It
     // would return the same PLS for every frame anyway.
-    if (expected_plsc.size() == 1) {
-        d_plsc_decoder_enabled = false;
-        d_ccm_sis_pls = pls_info_t(expected_plsc[0]);
-    }
+
+    d_plsc_decoder_enabled = false;
+    d_ccm_sis_pls = pls_info_t(expected_plsc[0]);
+
     std::sort(expected_plsc.begin(), expected_plsc.end());
 
     // Heap-allocated modules
@@ -173,7 +113,7 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
 /*
  * Our virtual destructor.
  */
-plsync_cc_impl::~plsync_cc_impl()
+plframer_cc_impl::~plframer_cc_impl()
 {
     delete d_frame_sync;
     delete d_plsc_decoder;
@@ -181,7 +121,7 @@ plsync_cc_impl::~plsync_cc_impl()
     delete d_pl_descrambler;
 }
 
-void plsync_cc_impl::forecast(int noutput_items, gr_vector_int& ninput_items_required)
+void plframer_cc_impl::forecast(int noutput_items, gr_vector_int& ninput_items_required)
 {
     if (d_locked) {
         // The work function can process multiple PLFRAMEs in one call. Hence, the number
@@ -227,7 +167,7 @@ void plsync_cc_impl::forecast(int noutput_items, gr_vector_int& ninput_items_req
     ninput_items_required[0] = std::min(ninput_items_required[0], noutput_items);
 }
 
-void plsync_cc_impl::handle_tags(int ninput_items)
+void plframer_cc_impl::handle_tags(int ninput_items)
 {
     // Search for tags in the input buffer and copy them to the local queue. Do not repeat
     // the search over the samples already processed in a previous call.
@@ -242,7 +182,7 @@ void plsync_cc_impl::handle_tags(int ninput_items)
     d_rot_ctrl.last_tag_search_end = abs_end;
 }
 
-void plsync_cc_impl::calibrate_tag_delay(const uint64_t abs_sof_idx, int tolerance)
+void plframer_cc_impl::calibrate_tag_delay(const uint64_t abs_sof_idx, int tolerance)
 {
     // Search for tags that occurred since the last search up to the current SOF
     // plus some tag delay tolerance.
@@ -386,10 +326,10 @@ void plsync_cc_impl::calibrate_tag_delay(const uint64_t abs_sof_idx, int toleran
     }
 }
 
-void plsync_cc_impl::control_rotator_freq(uint64_t abs_sof_idx,
-                                          uint16_t plframe_len,
-                                          double rot_freq_adj,
-                                          bool ref_is_past_frame)
+void plframer_cc_impl::control_rotator_freq(uint64_t abs_sof_idx,
+                                            uint16_t plframe_len,
+                                            double rot_freq_adj,
+                                            bool ref_is_past_frame)
 {
     // By default, schedule the phase increment change to take place at the start of the
     // next frame (the next SOF). This increment change may arrive at the rotator after
@@ -477,23 +417,9 @@ void plsync_cc_impl::control_rotator_freq(uint64_t abs_sof_idx,
                        target_samp_idx);
 }
 
-void plframe_idx_t::step(uint16_t n_slots, bool has_pilots)
-{
-    i_slot += n_slots;
-    i_pilot_blk = (has_pilots) ? i_slot / SLOTS_PER_PILOT_BLK : 0;
-    i_in_payload = i_slot * SLOT_LEN + i_pilot_blk * PILOT_BLK_LEN;
-}
-
-void plframe_idx_t::reset()
-{
-    i_in_payload = 0;
-    i_pilot_blk = 0;
-    i_slot = 0;
-}
-
-void plsync_cc_impl::handle_plheader(uint64_t abs_sof_idx,
-                                     const gr_complex* p_plheader,
-                                     plframe_info_t& frame_info)
+void plframer_cc_impl::handle_plheader(uint64_t abs_sof_idx,
+                                       const gr_complex* p_plheader,
+                                       plframe_info_t& frame_info)
 {
     // Cache the SOF index
     frame_info.abs_sof_idx = abs_sof_idx;
@@ -573,28 +499,7 @@ void plsync_cc_impl::handle_plheader(uint64_t abs_sof_idx,
         frame_info.coarse_corrected = d_freq_sync->is_coarse_corrected();
     }
 
-    /* Decode the pi/2 BPSK-mapped and scrambled PLSC symbols
-     *
-     * The PLSC decoder offers coherent and non-coherent decoding alternatives,
-     * both with hard or soft demapping. Use the default coherent soft decoder.
-     *
-     * In CCM/SIS mode, skip the decoding and assume the PLS is always the same. */
-    if (d_plsc_decoder_enabled) {
-        /* First, de-rotate the PLHEADER's pi/2 BPSK symbols. Run the derotation in
-         * open-loop mode while the external de-rotator block is not adjusted yet. */
-        d_freq_sync->derotate_plheader(p_plheader, !d_closed_loop);
-        const gr_complex* p_pp_plheader = d_freq_sync->get_plheader();
-
-        /* Decode the de-rotated PLHEADER */
-        d_plsc_decoder->decode(p_pp_plheader + SOF_LEN - 1);
-        d_plsc_decoder->get_info(&frame_info.pls);
-
-        /* Tell the frame synchronizer what the frame length is, so that it
-         * knows when to expect the next SOF */
-        d_frame_sync->set_frame_len(frame_info.pls.plframe_len);
-    } else {
-        frame_info.pls = d_ccm_sis_pls;
-    }
+    frame_info.pls = d_ccm_sis_pls;
 
     // As mentioned earlier, estimate the coarse frequency offset here (after the PLSC
     // decoding) if the frequency synchronizer was already coarse-corrected before or if
@@ -619,13 +524,13 @@ void plsync_cc_impl::handle_plheader(uint64_t abs_sof_idx,
      * correction. The dummy frames are too short, so there is a good chance the
      * correction will arrive late at the rotator message port, i.e., after the rotator
      * has already processed the corresponding index, which we should avoid. */
-    if (d_locked && !frame_info.coarse_corrected && new_coarse_est &&
-        !frame_info.pls.dummy_frame) {
-        control_rotator_freq(abs_sof_idx,
-                             frame_info.pls.plframe_len,
-                             frame_info.coarse_foffset,
-                             false /* reference is the current frame */);
-    }
+    // if (d_locked && !frame_info.coarse_corrected && new_coarse_est &&
+    //     !frame_info.pls.dummy_frame) {
+    //     control_rotator_freq(abs_sof_idx,
+    //                          frame_info.pls.plframe_len,
+    //                          frame_info.coarse_foffset,
+    //                          false /* reference is the current frame */);
+    // }
 
     /* Copy the full original PLHEADER (before derotation) to the frame info structure.
      * The PLHEADER can be used later, e.g., for fine frequency offset estimation. */
@@ -636,11 +541,11 @@ void plsync_cc_impl::handle_plheader(uint64_t abs_sof_idx,
         d_freq_sync->estimate_plheader_phase(p_plheader, frame_info.pls.plsc);
 }
 
-int plsync_cc_impl::handle_payload(int noutput_items,
-                                   gr_complex* out,
-                                   const gr_complex* p_payload,
-                                   plframe_info_t& frame_info,
-                                   const plframe_info_t& next_frame_info)
+int plframer_cc_impl::handle_payload(int noutput_items,
+                                     gr_complex* out,
+                                     const gr_complex* p_payload,
+                                     plframe_info_t& frame_info,
+                                     const plframe_info_t& next_frame_info)
 {
     const gr_complex* p_descrambled_payload = d_pl_descrambler->get_payload();
 
@@ -685,10 +590,10 @@ int plsync_cc_impl::handle_payload(int noutput_items,
             // processed SOF n+1 at this point. Hence, schedule the frequency update for
             // SOF n+2. For that, use the next_frame_info, which holds the absolute index
             // where SOF n+1 starts and the length of PLFRAME n+1.
-            control_rotator_freq(next_frame_info.abs_sof_idx,
-                                 next_frame_info.pls.plframe_len,
-                                 frame_info.fine_foffset,
-                                 true /* reference is the previous frame */);
+            // control_rotator_freq(next_frame_info.abs_sof_idx,
+            //                      next_frame_info.pls.plframe_len,
+            //                      frame_info.fine_foffset,
+            //                      true /* reference is the previous frame */);
         }
 
         // We are done with the processing that does not depend on the output
@@ -729,68 +634,47 @@ int plsync_cc_impl::handle_payload(int noutput_items,
     // Output the phase-corrected and descrambled data symbols.
     int n_produced = 0;
     uint16_t n_slots_out = noutput_items / SLOT_LEN;
-    if (frame_info.pls.has_pilots) {
-        // Process each 16-slot segment between pilot blocks at a time
-        uint16_t i_slot = 0;
-        while (i_slot < n_slots_out && d_idx.i_slot < frame_info.pls.n_slots) {
-            // Try to process as many slots as possible up to the next pilot block, when
-            // the phase correction changes. If we are already past the last pilot block,
-            // try to process as many slots as possible up to the end of the PLFRAME.
-            uint16_t max_slots_to_process =
-                (d_idx.i_pilot_blk == frame_info.pls.n_pilots)
-                    ? (frame_info.pls.n_slots - d_idx.i_slot)
-                    : (SLOTS_PER_PILOT_BLK - (d_idx.i_slot % SLOTS_PER_PILOT_BLK));
-            uint16_t slots_remaining = n_slots_out - i_slot;
-            uint16_t slots_to_process = std::min(slots_remaining, max_slots_to_process);
-            uint16_t slot_seq_len = slots_to_process * SLOT_LEN;
-            assert((noutput_items - n_produced) >= slot_seq_len);
-
-            // Pointer to the next sequence of slots
-            const gr_complex* p_slot_seq = p_descrambled_payload + d_idx.i_in_payload;
-
-            // Reset the rotator phase whenever a new 16-slot sequence starts. Set it
-            // equal to the phase estimate obtained from the most recent (preceding)
-            // 36-symbol pilot block. Skip the very first 16-slot sequence, given it is
-            // preceded by the PLHEADER instead of a pilot block. Also, do so only if
-            // coarse-corrected, as otherwise the pilot phase estimates are uninitialized.
-            //
-            // NOTE: there is always an interation where the current slot (d_idx.i_slot)
-            // is the starting slot of a 16-slot sequence due to the limit imposed by the
-            // "max_slots_to_process" variable. Hence, the conditional below is guaranteed
-            // to be hit for every 16-slot sequence.
-            if (frame_info.coarse_corrected && d_idx.i_pilot_blk > 0 &&
-                (d_idx.i_slot % SLOTS_PER_PILOT_BLK) == 0) {
-                float pilot_phase = d_freq_sync->get_pilot_phase(d_idx.i_pilot_blk - 1);
-                d_phase_corr = gr_expj(-pilot_phase);
-            }
-
-            // De-rotate the slot sequence
-            volk_32fc_s32fc_x2_rotator_32fc(out + n_produced,
-                                            p_slot_seq,
-                                            expj_phase_inc,
-                                            &d_phase_corr,
-                                            slot_seq_len);
-
-            n_produced += slot_seq_len;
-
-            d_idx.step(slots_to_process, frame_info.pls.has_pilots);
-            i_slot += slots_to_process;
-        }
-    } else {
-        // Process as many slots as possible in one go
-        uint16_t max_slots_to_process = frame_info.pls.n_slots - d_idx.i_slot;
-        uint16_t slots_to_process = std::min(n_slots_out, max_slots_to_process);
+    // Process each 16-slot segment between pilot blocks at a time
+    uint16_t i_slot = 0;
+    while (i_slot < n_slots_out && d_idx.i_slot < frame_info.pls.n_slots) {
+        // Try to process as many slots as possible up to the next pilot block, when
+        // the phase correction changes. If we are already past the last pilot block,
+        // try to process as many slots as possible up to the end of the PLFRAME.
+        uint16_t max_slots_to_process =
+            (d_idx.i_pilot_blk == frame_info.pls.n_pilots)
+                ? (frame_info.pls.n_slots - d_idx.i_slot)
+                : (SLOTS_PER_PILOT_BLK - (d_idx.i_slot % SLOTS_PER_PILOT_BLK));
+        uint16_t slots_remaining = n_slots_out - i_slot;
+        uint16_t slots_to_process = std::min(slots_remaining, max_slots_to_process);
         uint16_t slot_seq_len = slots_to_process * SLOT_LEN;
+        assert((noutput_items - n_produced) >= slot_seq_len);
 
         // Pointer to the next sequence of slots
         const gr_complex* p_slot_seq = p_descrambled_payload + d_idx.i_in_payload;
 
+        // Reset the rotator phase whenever a new 16-slot sequence starts. Set it
+        // equal to the phase estimate obtained from the most recent (preceding)
+        // 36-symbol pilot block. Skip the very first 16-slot sequence, given it is
+        // preceded by the PLHEADER instead of a pilot block. Also, do so only if
+        // coarse-corrected, as otherwise the pilot phase estimates are uninitialized.
+        //
+        // NOTE: there is always an interation where the current slot (d_idx.i_slot)
+        // is the starting slot of a 16-slot sequence due to the limit imposed by the
+        // "max_slots_to_process" variable. Hence, the conditional below is guaranteed
+        // to be hit for every 16-slot sequence.
+        if (frame_info.coarse_corrected && d_idx.i_pilot_blk > 0 &&
+            (d_idx.i_slot % SLOTS_PER_PILOT_BLK) == 0) {
+            float pilot_phase = d_freq_sync->get_pilot_phase(d_idx.i_pilot_blk - 1);
+            d_phase_corr = gr_expj(-pilot_phase);
+        }
+
         // De-rotate the slot sequence
         volk_32fc_s32fc_x2_rotator_32fc(
-            out, p_slot_seq, expj_phase_inc, &d_phase_corr, slot_seq_len);
+            out + n_produced, p_slot_seq, expj_phase_inc, &d_phase_corr, slot_seq_len);
         n_produced += slot_seq_len;
 
         d_idx.step(slots_to_process, frame_info.pls.has_pilots);
+        i_slot += slots_to_process;
     }
 
     // Finalize
@@ -802,10 +686,10 @@ int plsync_cc_impl::handle_payload(int noutput_items,
     return n_produced;
 }
 
-int plsync_cc_impl::general_work(int noutput_items,
-                                 gr_vector_int& ninput_items,
-                                 gr_vector_const_void_star& input_items,
-                                 gr_vector_void_star& output_items)
+int plframer_cc_impl::general_work(int noutput_items,
+                                   gr_vector_int& ninput_items,
+                                   gr_vector_const_void_star& input_items,
+                                   gr_vector_void_star& output_items)
 {
     const gr_complex* in = (const gr_complex*)input_items[0];
     gr_complex* out = (gr_complex*)output_items[0];
@@ -816,10 +700,12 @@ int plsync_cc_impl::general_work(int noutput_items,
 
     // Keep processing as long as:
     //
-    // 1) There are input samples to consume. If the input buffer is empty, we may still
+    // 1) There are input samples to consume. If the input buffer is empty, we may
+    // still
     //    produce some output if there is a payload whose processing is pending.
     //
-    // 2) There is space in the output buffer. If the output buffer is full, we may still
+    // 2) There is space in the output buffer. If the output buffer is full, we may
+    // still
     //    consume input samples as long as we are still searching for the next frame.
     //
     const bool empty_input = ninput_items[0] == 0;
@@ -828,12 +714,12 @@ int plsync_cc_impl::general_work(int noutput_items,
             (empty_input && d_payload_state != payload_state_t::searching)) &&
            (n_produced < noutput_items ||
             (full_output && d_payload_state == payload_state_t::searching))) {
-        // If there is no payload waiting to be processed, consume the input stream until
-        // the next SOF/PLHEADER is found by the frame synchronizer.
+        // If there is no payload waiting to be processed, consume the input stream
+        // until the next SOF/PLHEADER is found by the frame synchronizer.
         if (d_payload_state == payload_state_t::searching) {
             for (int i = n_consumed; i < ninput_items[0]; i++) {
-                // Step the frame synchronizer and keep refreshing the locked state. It
-                // could change any time.
+                // Step the frame synchronizer and keep refreshing the locked state.
+                // It could change any time.
                 bool is_sof = d_frame_sync->step(in[i]);
                 d_locked = d_frame_sync->is_locked();
                 n_consumed++;
@@ -848,41 +734,43 @@ int plsync_cc_impl::general_work(int noutput_items,
                 GR_LOG_DEBUG_LEVEL(
                     2, "SOF count: {:d}; Index: {:d}", d_sof_cnt, abs_sof_idx);
 
-                // Cache some information from the last PLFRAME before handling the new
-                // PLHEADER. As soon as the PLHEADER is handled, the PLSC decoder will
-                // update its PL signaling info, and other state variables will change.
-                // However, because we always process the payload between two SOFs, the
-                // payload of interest is the one corresponding to the preceding PLHEADER,
-                // not the succeeding PLHEADER that is about to be handled.
+                // Cache some information from the last PLFRAME before handling the
+                // new PLHEADER. As soon as the PLHEADER is handled, the PLSC decoder
+                // will update its PL signaling info, and other state variables will
+                // change. However, because we always process the payload between two
+                // SOFs, the payload of interest is the one corresponding to the
+                // preceding PLHEADER, not the succeeding PLHEADER that is about to be
+                // handled.
                 //
-                // In addition to the PL signaling information, the following variables
-                // also need to be cached:
+                // In addition to the PL signaling information, the following
+                // variables also need to be cached:
                 //
                 // - The coarse corrected state. We want to know if the frequency
-                //   synchronizer was already coarse-corrected at the time of the PLFRAME
-                //   being processed, not at the time of the next PLHEADER that is about
-                //   to be processed.
+                //   synchronizer was already coarse-corrected at the time of the
+                //   PLFRAME being processed, not at the time of the next PLHEADER
+                //   that is about to be processed.
                 //
                 // - The PLHEADER sequence itself. We need it in order to estimate the
                 //   PLHEADER phase when processing the payload.
                 //
-                // This metadata is contained within the plframe_info_t structure. Once
-                // `handle_plheader()` is called, it updates `d_next_frame_info`. Hence,
-                // cache the `d_next_frame_info` from the previous SOF, which is the
-                // current frame to be processed by the `handle_payload()` function.
+                // This metadata is contained within the plframe_info_t structure.
+                // Once `handle_plheader()` is called, it updates `d_next_frame_info`.
+                // Hence, cache the `d_next_frame_info` from the previous SOF, which
+                // is the current frame to be processed by the `handle_payload()`
+                // function.
                 d_curr_frame_info = d_next_frame_info;
 
                 // The PLHEADER can always be processed right away because it doesn't
                 // produce any output (no need to worry about noutput_items). Also, at
-                // this point, and only at this point, the PLHEADER is available inside
-                // the frame synchronizer and can be fetched via the
+                // this point, and only at this point, the PLHEADER is available
+                // inside the frame synchronizer and can be fetched via the
                 // `frame_sync.get_plheader()` method.
                 handle_plheader(
                     abs_sof_idx, d_frame_sync->get_plheader(), d_next_frame_info);
 
-                // If this is the first SOF ever, keep going until the next. We take the
-                // PLFRAME payload as the sequence of symbols between two SOFs. Hence, we
-                // need at least two SOF detections.
+                // If this is the first SOF ever, keep going until the next. We take
+                // the PLFRAME payload as the sequence of symbols between two SOFs.
+                // Hence, we need at least two SOF detections.
                 static bool first_sof = true;
                 if (first_sof) {
                     first_sof = false;
@@ -895,12 +783,13 @@ int plsync_cc_impl::general_work(int noutput_items,
                 if (!d_locked)
                     continue;
 
-                // Reject the frame if its PLS value is not enabled for processing. In CCM
-                // mode, this rejection ensures the downstream blocks won't get any
-                // accidental XFECFRAME of differing size, which could break the block's
-                // notion of the XFECFRAME boundaries. In ACM/VCM mode, this rejection is
-                // useful to prevent wrong frame detection when it's known a priori that
-                // certain PLS values cannot be found in the input stream.
+                // Reject the frame if its PLS value is not enabled for processing. In
+                // CCM mode, this rejection ensures the downstream blocks won't get
+                // any accidental XFECFRAME of differing size, which could break the
+                // block's notion of the XFECFRAME boundaries. In ACM/VCM mode, this
+                // rejection is useful to prevent wrong frame detection when it's
+                // known a priori that certain PLS values cannot be found in the input
+                // stream.
                 if (!d_pls_enabled[d_curr_frame_info.pls.plsc]) {
                     GR_LOG_DEBUG_LEVEL(
                         2, "PLFRAME rejected (PLS={:d})", d_curr_frame_info.pls.plsc);
@@ -908,31 +797,20 @@ int plsync_cc_impl::general_work(int noutput_items,
                     continue;
                 }
 
-                // If the PLFRAME between the present and the past SOFs is a dummy frame,
-                // it doesn't produce any output. Skip it and keep going until the next.
+                // If the PLFRAME between the present and the past SOFs is a dummy
+                // frame, it doesn't produce any output. Skip it and keep going until
+                // the next.
                 if (d_curr_frame_info.pls.dummy_frame) {
                     d_dummy_cnt++;
                     continue;
                 }
 
-                // The payload can only be processed if the expected XFECFRAME output fits
-                // in the output buffer. Hence, unlike the PLHEADER, it may not be
-                // processed right away. Mark the processing as pending for now and don't
-                // consume any more input samples until this payload is handled.
+                // The payload can only be processed if the expected XFECFRAME output
+                // fits in the output buffer. Hence, unlike the PLHEADER, it may not
+                // be processed right away. Mark the processing as pending for now and
+                // don't consume any more input samples until this payload is handled.
                 d_payload_state = payload_state_t::pending;
                 d_frame_cnt++;
-
-                // If running in ACM/VCM mode, tag the beginning of the XFECFRAME to
-                // follow in the output. Include the MODCOD and the FECFRAME length so
-                // that downstream blocks can de-map and decode this frame.
-                if (d_acm_vcm) {
-                    add_item_tag(
-                        0, // output 0 (the only output port)
-                        nitems_written(0) + n_produced,
-                        pmt::string_to_symbol("XFECFRAME"),
-                        pmt::cons(pmt::from_long(d_curr_frame_info.pls.modcod),
-                                  pmt::from_bool(d_curr_frame_info.pls.short_fecframe)));
-                }
                 break;
             }
         }

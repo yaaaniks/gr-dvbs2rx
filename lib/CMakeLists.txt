@@ -13,10 +13,15 @@ add_subdirectory(ldpc_decoder)
 ########################################################################
 include(GrPlatform) #define LIB_SUFFIX
 
+include_directories(framer)
+
 list(APPEND dvbs2rx_sources
     bbdeheader_bb_impl.cc
     bbdescrambler_bb_impl.cc
     bch_decoder_bb_impl.cc
+    pl_correlator.cc
+    plframer_cc_impl.cc
+    phase_detector.cc
     bch.cc
     fec_params.cc
     gf.cc
