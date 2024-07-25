@@ -32,7 +32,9 @@ void bind_plsync_cc(py::module& m);
 void bind_rotator_cc(py::module& m);
 void bind_symbol_sync_cc(py::module& m);
 void bind_xfecframe_demapper_cb(py::module& m);
-void bind_plframer_cc(py::module& m);
+// void bind_plframer_cc(py::module& m);
+void bind_agc_loop_xx(py::module& m);
+
 // ) END BINDING_FUNCTION_PROTOTYPES
 
 
@@ -72,6 +74,7 @@ PYBIND11_MODULE(dvbs2rx_python, m)
     bind_rotator_cc(m);
     bind_symbol_sync_cc(m);
     bind_xfecframe_demapper_cb(m);
-    bind_plframer_cc(m);
+    // bind_plframer_cc(m);
+    bind_agc_loop_xx(m);
     // ) END BINDING_FUNCTION_CALLS
 }

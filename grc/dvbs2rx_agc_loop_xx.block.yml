@@ -1,0 +1,85 @@
+id: dvbs2rx_agc_loop_xx
+label: AGC Loop
+category: "[Core]/Digital Television/DVB"
+flags: [python, cpp]
+
+    # -   id: type
+    # label: Type
+    # dtype: enum
+    # options: [complex, float]
+    # option_attributes:
+    # fcn: [cc, ff]
+    # hide: part
+
+parameters:
+    - id: hw_agc_if_gain
+      label: Hardware AGC IF gain
+      dtype: real
+      default: 1e-4
+    - id: vlen
+      label: Vector Length
+      dtype: int
+      default: '1'
+      hide: ${ 'part' if vlen == 1 else 'none' }
+    - id: hw_agc_lna_state
+      label: Hardware AGC LNA state
+      dtype: real
+      default: "0.0"
+    - id: sw_agc_rate
+      label: Software AGC rate
+      dtype: real
+      default: 1e-4
+    - id: sw_agc_reference
+      label: Software AGC reference
+      dtype: real
+      default: "1.0"
+    - id: sw_agc_gain
+      label: Software AGC gain
+      dtype: real
+      default: "1.0"
+    - id: sw_agc_max_gain
+      label: Software AGC max gain
+      dtype: real
+      default: "65536"
+
+inputs:
+    - label: in
+      domain: stream
+      dtype: float
+      vlen: ${ vlen }
+      optional: 0
+asserts:
+- ${ vlen > 0 }
+
+outputs:
+  - domain: message
+    id: gain_cmd
+    optional: true
+
+templates:
+    imports: from gnuradio import dvbs2rx
+    make: |-
+        dvbs2rx.agc_loop_xx(${vlen}, ${hw_agc_if_gain}, ${hw_agc_lna_state}, ${sw_agc_rate}, ${sw_agc_reference}, ${sw_agc_gain}, ${sw_agc_max_gain})
+    callbacks:
+        - set_hw_agc_if_gain(${hw_agc_if_gain})
+        - set_hw_agc_lna_state(${hw_agc_lna_state})
+        - set_sw_agc_rate(${sw_agc_rate})
+        - set_sw_agc_reference(${sw_agc_reference})
+        - set_sw_agc_gain(${sw_agc_gain})
+        - set_sw_agc_max_gain(${sw_agc_max_gain})
+
+cpp_templates:
+    includes: ["#include <gnuradio/dvbs2rx/agc_loop_xx.h>"]
+    declarations: "dvbs2rx::agc_loop_xx::sptr ${id};"
+    make: |-
+        this->${id} = dvbs2rx::agc_loop_xx::make(${vlen}, ${hw_agc_if_gain}, ${hw_agc_lna_state}, ${sw_agc_rate}, ${sw_agc_reference}, ${sw_agc_gain}, ${sw_agc_max_gain});
+    callbacks:
+        - set_hw_agc_if_gain(${hw_agc_if_gain})
+        - set_hw_agc_lna_state(${hw_agc_lna_state})
+        - set_sw_agc_rate(${sw_agc_rate})
+        - set_sw_agc_reference(${sw_agc_reference})
+        - set_sw_agc_gain(${sw_agc_gain})
+        - set_sw_agc_max_gain(${sw_agc_max_gain})
+    link: ["gnuradio-dvbs2rx"]
+
+file_format: 1

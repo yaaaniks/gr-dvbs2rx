@@ -1,7 +1,6 @@
 #ifndef PL_FRAMER_INCLUDED
 #define PL_FRAMER_INCLUDED
 
-
 #include <gnuradio/block.h>
 #include <gnuradio/dvbs2rx/api.h>
 

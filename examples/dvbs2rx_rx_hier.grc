@@ -157,25 +157,6 @@ blocks:
     coordinate: [1296, 424.0]
     rotation: 0
     state: disabled
-- name: blocks_null_source_0
-  id: blocks_null_source
-  parameters:
-    affinity: ''
-    alias: ''
-    bus_structure_source: '[[0,],]'
-    comment: ''
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    num_outputs: '1'
-    type: complex
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [376, 368.0]
-    rotation: 0
-    state: enabled
 - name: debug
   id: parameter
   parameters:
@@ -208,9 +189,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [864, 816.0]
+    coordinate: [832, 840.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: digital_symbol_sync_xx_1
   id: digital_symbol_sync_xx
   parameters:
@@ -236,9 +217,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [504, 636.0]
+    coordinate: [520, 628.0]
     rotation: 0
-    state: true
+    state: enabled
 - name: dvbs2rx_bbdeheader_bb_0
   id: dvbs2rx_bbdeheader_bb
   parameters:
@@ -358,7 +339,7 @@ blocks:
     bus_structure: null
     coordinate: [328, 664.0]
     rotation: 0
-    state: disabled
+    state: enabled
 - name: dvbs2rx_xfecframe_demapper_cb_0
   id: dvbs2rx_xfecframe_demapper_cb
   parameters:
@@ -461,7 +442,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [792, 404.0]
+    coordinate: [888, 384.0]
     rotation: 0
     state: true
 - name: pad_sink_1_0
@@ -497,7 +478,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [504, 388.0]
+    coordinate: [552, 400.0]
     rotation: 0
     state: true
 - name: pad_sink_2_0
@@ -676,12 +657,11 @@ blocks:
     state: true
 
 connections:
-- [analog_agc_xx_0_0, '0', digital_symbol_sync_xx_1, '0']
 - [analog_agc_xx_0_0, '0', dvbs2rx_rotator_cc_foffset_corr, '0']
 - [analog_agc_xx_0_0, '0', pad_sink_2_0, '0']
-- [blocks_null_source_0, '0', pad_sink_2, '0']
 - [digital_costas_loop_cc_0, '0', dvbs2rx_plsync_cc_0_0, '0']
 - [digital_symbol_sync_xx_1, '0', digital_costas_loop_cc_0, '0']
+- [digital_symbol_sync_xx_1, '0', dvbs2rx_plsync_cc_0_0, '0']
 - [digital_symbol_sync_xx_1, '0', pad_sink_1, '0']
 - [dvbs2rx_bbdeheader_bb_0, '0', pad_sink_0, '0']
 - [dvbs2rx_bbdescrambler_bb_0, '0', dvbs2rx_bbdeheader_bb_0, '0']

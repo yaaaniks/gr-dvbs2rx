@@ -13,10 +13,9 @@ GR_PYTHON_CHECK_MODULE_RAW(
 
 include(GrPybind)
 
-########################################################################
+# #######################################################################
 # Python Bindings
-########################################################################
-
+# #######################################################################
 list(APPEND dvbs2rx_python_files
     bbdeheader_bb_python.cc
     bbdescrambler_bb_python.cc
@@ -29,7 +28,8 @@ list(APPEND dvbs2rx_python_files
     rotator_cc_python.cc
     symbol_sync_cc_python.cc
     xfecframe_demapper_cb_python.cc
-    plframer_cc_python.cc
+    # plframer_cc_python.cc
+    agc_loop_xx_python.cc
     python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(dvbs2rx

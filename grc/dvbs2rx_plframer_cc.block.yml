@@ -1,48 +1,66 @@
 id: dvbs2rx_plframer_cc
 label: DVB-S2 PL Framer
 category: "[Core]/Digital Television/DVB-S2"
+flags: [python, cpp]
 
 templates:
-  imports: from gnuradio import dvbs2rx
-  make: dvbs2rx.plframer_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
+    imports: from gnuradio import dvbs2rx
+    make: dvbs2rx.plframer_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
+
+cpp_templates:
+    includes: ["#include <gnuradio/dvbs2rx/plframer_cc.h>"]
+    declarations: "gr::dvbs2rx::plframer_cc::sptr ${id};"
+    make: |
+        this->${id} = gr::dvbs2rx::plframer_cc::make(
+            ${gold_code}, 
+            ${freq_est_period}, 
+            ${sps}, 
+            ${debug_level}, 
+            ${pls_code}
+        );
+    link: ["gnuradio-dvbs2rx"]
+    translations:
+        "'": '"'
+        "True": "true"
+        "False": "false"
 
 parameters:
-  - id: gold_code
-    label: Gold code
-    dtype: int
-    default: 0
-  - id: freq_est_period
-    label: Freq. Estimation Period
-    dtype: int
-    default: 10
-  - id: sps
-    label: MF Oversampling
-    dtype: real
-    default: 10.0
-  - id: debug_level
-    label: Debug Level
-    dtype: int
-    default: 0
-  - id: pls_code
-    label: PLSC Bit sequence
-    dtype: int
-    default: 0
+    - id: gold_code
+      label: Gold code
+      dtype: int
+      default: 0
+    - id: freq_est_period
+      label: Freq. Estimation Period
+      dtype: int
+      default: 10
+    - id: sps
+      label: MF Oversampling
+      dtype: real
+      default: 10.0
+    - id: debug_level
+      label: Debug Level
+      dtype: int
+      default: 0
+    - id: pls_code
+      label: PLSC Bit sequence
+      dtype: int
+      default: 0
 
 inputs:
-  - label: in
-    domain: stream
-    dtype: complex
-    vlen: 1
-    optional: 0
+    - label: in
+      domain: stream
+      dtype: complex
+      vlen: 1
+      optional: 0
 
 outputs:
-  - label: out
-    domain: stream
-    dtype: complex
-    vlen: 1
-    optional: 0
-  - domain: message
-    id: corr
-    optional: true
+    - label: out
+      domain: stream
+      dtype: complex
+      vlen: 1
+      optional: 0
+    - domain: message
+      id: corr
+      optional: true
 
 file_format: 1

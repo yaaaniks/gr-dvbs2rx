@@ -17,8 +17,11 @@ install(FILES
     ldpc_decoder_bb.h
     plsync_cc.h
     rotator_cc.h
+    dvb_config.h
+    common.h
     symbol_sync_cc.h
     xfecframe_demapper_cb.h
-    plframer_cc.h
+    # plframer_cc.h
+    agc_loop_xx.h
     DESTINATION include/gnuradio/dvbs2rx
 )

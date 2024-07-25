@@ -16,7 +16,9 @@
 #include "pl_submodule.h"
 #include <gnuradio/dvbs2rx/api.h>
 #include <gnuradio/gr_complex.h>
+#include <volk/volk_alloc.hh>
 #include <chrono>
+#include <cstdint>
 
 /* correlator lengths, based on the number of differentials that we know in
  * advance (25 for SOF and only 32 for PLSC) */
@@ -126,6 +128,7 @@ enum class frame_sync_state_t {
  */
 class DVBS2RX_API frame_sync : public pl_submodule
 {
+
 private:
     /* Parameters */
     uint8_t d_unlock_thresh; /**< Number of frame detection failures before unlocking */
@@ -145,9 +148,11 @@ private:
     delay_line<gr_complex> d_plsc_e_buf;     /**< Even PLSC correlator buffer  */
     delay_line<gr_complex> d_plsc_o_buf;     /**< Odd PLSC correlator buffer */
     cdeque<gr_complex> d_plheader_buf;       /**< Buffer to store the PLHEADER symbols */
-    volk::vector<gr_complex> d_payload_buf;  /**< Buffer to store the PLFRAME payload */
-    volk::vector<gr_complex> d_sof_taps;     /**< SOF cross-correlation taps */
-    volk::vector<gr_complex> d_plsc_taps;    /**< PLSC cross-correlation taps */
+
+    volk::vector<gr_complex> d_payload_buf; /**< Buffer to store the PLFRAME payload */
+    volk::vector<gr_complex> d_sof_taps;    /**< SOF cross-correlation taps */
+    volk::vector<gr_complex> d_plsc_taps;   /**< PLSC cross-correlation taps */
+    volk::vector<gr_complex> d_encoded_plsc;
 
     /* Timing metric threshold for inferring a start of frame.
      *
@@ -157,9 +162,9 @@ private:
      * sufficiently strong where it is expected to be (at the start of
      * the next frame). Since it is very important not to unlock
      * unnecessarily, use a lower threshold for this task. */
-    const float threshold_u = 30; /** unlocked threshold */
-                                  /* TODO: make this a top-level parameter */
-    const float threshold_l = 25; /** locked threshold */
+    float threshold_u; /** unlocked threshold */
+                       /* TODO: make this a top-level parameter */
+    float threshold_l; /** locked threshold */
 
     /**
      * \brief Cross-correlation between a delay line buffer and a given vector.
@@ -197,7 +202,10 @@ public:
      * PLHEADERs in wrong indexes. Hence, in this example, it is better to
      * unlock reasonably fast than to wait further.
      */
-    frame_sync(int debug_level, uint8_t unlock_thresh = 3);
+    frame_sync(int debug_level,
+               uint8_t unlock_thresh = 3,
+               const float u_threshold = 30,
+               const float l_threshold = 25);
 
     /**
      * \brief Process the next input symbol.
@@ -295,6 +303,12 @@ public:
      * to when the frame synchronizer locked the frame timing. Valid only when locked.
      */
     std::chrono::system_clock::time_point get_lock_time() { return d_lock_time; }
+
+    void set_plsc(const gr_complex* p_encoded_plsc);
+
+    void set_locked_threshold(const float thr_l) { threshold_l = thr_l; }
+
+    void set_unlocked_threshold(const float thr_u) { threshold_u = thr_u; }
 };
 
 } // namespace dvbs2rx

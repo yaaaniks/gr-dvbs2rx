@@ -148,7 +148,7 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
     std::sort(expected_plsc.begin(), expected_plsc.end());
 
     // Heap-allocated modules
-    d_frame_sync = new frame_sync(debug_level);
+    d_frame_sync = new frame_sync(debug_level, 3, 40, 35);
     d_plsc_decoder = new plsc_decoder(std::move(expected_plsc), debug_level);
     d_freq_sync = new freq_sync(freq_est_period, debug_level);
     d_pl_descrambler = new pl_descrambler(gold_code);
@@ -763,7 +763,8 @@ int plsync_cc_impl::handle_payload(int noutput_items,
                 float pilot_phase = d_freq_sync->get_pilot_phase(d_idx.i_pilot_blk - 1);
                 d_phase_corr = gr_expj(-pilot_phase);
             }
-
+            d_phase_corr = gr_complex{ std::round(d_phase_corr.real()),
+                                       std::round(d_phase_corr.imag()) };
             // De-rotate the slot sequence
             volk_32fc_s32fc_x2_rotator_32fc(out + n_produced,
                                             p_slot_seq,
@@ -784,7 +785,8 @@ int plsync_cc_impl::handle_payload(int noutput_items,
 
         // Pointer to the next sequence of slots
         const gr_complex* p_slot_seq = p_descrambled_payload + d_idx.i_in_payload;
-
+        d_phase_corr = gr_complex{ std::round(d_phase_corr.real()),
+                                   std::round(d_phase_corr.imag()) };
         // De-rotate the slot sequence
         volk_32fc_s32fc_x2_rotator_32fc(
             out, p_slot_seq, expj_phase_inc, &d_phase_corr, slot_seq_len);

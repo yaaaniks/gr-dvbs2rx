@@ -3,62 +3,84 @@
 id: dvbs2rx_ldpc_decoder_bb
 label: LDPC Decoder
 category: "[Core]/Digital Television/DVB"
+flags: [python, cpp]
 
 parameters:
--   id: standard
-    label: Standard
-    dtype: string
--   id: framesize
-    label: FECFRAME size
-    dtype: string
--   id: rate
-    label: Code rate
-    dtype: string
--   id: constellation
-    label: Constellation
-    dtype: string
--   id: outputmode
-    label: Output mode
-    dtype: enum
-    options: [OM_CODEWORD, OM_MESSAGE]
-    option_labels: [Codeword, Message]
--   id: infomode
-    label: Show Corrected SNR
-    dtype: enum
-    options: [INFO_OFF, INFO_ON]
-    option_labels: ['Off', 'On']
--   id: max_trials
-    label: Max Iterations
-    dtype: int
-    default: 25
--   id: debug_level
-    label: Debug Level
-    dtype: int
-    default: 0
+    - id: standard
+      label: Standard
+      dtype: string
+    - id: framesize
+      label: FECFRAME size
+      dtype: string
+    - id: rate
+      label: Code rate
+      dtype: string
+    - id: constellation
+      label: Constellation
+      dtype: string
+    - id: outputmode
+      label: Output mode
+      dtype: enum
+      options: [OM_CODEWORD, OM_MESSAGE]
+      option_labels: [Codeword, Message]
+    - id: infomode
+      label: Show Corrected SNR
+      dtype: enum
+      options: [INFO_OFF, INFO_ON]
+      option_labels: ["Off", "On"]
+    - id: max_trials
+      label: Max Iterations
+      dtype: int
+      default: 25
+    - id: debug_level
+      label: Debug Level
+      dtype: int
+      default: 0
 
 inputs:
--   domain: stream
-    dtype: byte
+    - domain: stream
+      dtype: byte
 
 outputs:
--   domain: stream
-    dtype: byte
--   domain: message
-    id: llr_pdu
-    optional: true
+    - domain: stream
+      dtype: byte
+    - domain: message
+      id: llr_pdu
+      optional: true
 
 templates:
-  imports: from gnuradio import dvbs2rx
-  make: |-
-    dvbs2rx.ldpc_decoder_bb(
-        *dvbs2rx.params.translate(${standard},
-            ${framesize},
-            ${rate},
-            ${constellation}
-        ),
-        dvbs2rx.${outputmode},
-        dvbs2rx.${infomode},
-        ${max_trials},
-        ${debug_level})
-
+    imports: from gnuradio import dvbs2rx
+    make: |-
+        dvbs2rx.ldpc_decoder_bb(
+            *dvbs2rx.params.translate(${standard},
+                ${framesize},
+                ${rate},
+                ${constellation}
+            ),
+            dvbs2rx.${outputmode},
+            dvbs2rx.${infomode},
+            ${max_trials},
+            ${debug_level})
+cpp_templates:
+    includes: [
+        "#include <gnuradio/dvbs2rx/ldpc_decoder_bb.h>", 
+        "#include <gnuradio/dvbs2rx/common.h>"
+    ]
+    declarations: "gr::dvbs2rx::ldpc_decoder_bb::sptr ${id};"
+    make: |
+        this->${id} = gr::dvbs2rx::ldpc_decoder_bb::make(
+            gr::dvbs2rx::string_to_dvb_standard["DVB-S2"],
+            gr::dvbs2rx::string_to_dvb_framesize[${framesize}],
+            gr::dvbs2rx::string_to_dvb_code_rate[${rate}],
+            gr::dvbs2rx::string_to_dvb_constellation[${constellation}],
+            gr::dvbs2rx::${outputmode},
+            gr::dvbs2rx::${infomode},
+            ${max_trials},
+            ${debug_level}
+        );
+    link: ["gnuradio-dvbs2rx"]
+    translations:
+        "'": '"'
+        "True": "true"
+        "False": "false"
 file_format: 1

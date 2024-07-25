@@ -184,11 +184,11 @@ set_property(TARGET cpu_features PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(include/gnuradio/dvbs2rx)
 add_subdirectory(lib)
-add_subdirectory(apps)
+# add_subdirectory(apps)
 add_subdirectory(docs)
 add_subdirectory(python/dvbs2rx)
 add_subdirectory(grc)
-add_subdirectory(bench)
+# add_subdirectory(bench)
 add_subdirectory(themes)
 
 ########################################################################

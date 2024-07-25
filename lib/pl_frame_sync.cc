@@ -8,16 +8,23 @@
  */
 
 #include "debug_level.h"
+#include "pl_defs.h"
 #include "pl_frame_sync.h"
+#include "pl_signaling.h"
 #include "util.h"
+#include <gnuradio/gr_complex.h>
 #include <boost/format.hpp>
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 
 namespace gr {
 namespace dvbs2rx {
 
-frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
+frame_sync::frame_sync(int debug_level,
+                       uint8_t unlock_thresh,
+                       const float u_threshold,
+                       const float l_threshold)
     : pl_submodule("frame_sync", debug_level),
       d_unlock_thresh(unlock_thresh),
       d_sym_cnt(0),
@@ -32,7 +39,11 @@ frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
       d_plsc_e_buf(PLSC_CORR_LEN),
       d_plsc_o_buf(PLSC_CORR_LEN),
       d_plheader_buf(PLHEADER_LEN),
-      d_payload_buf(MAX_PLFRAME_PAYLOAD)
+      d_payload_buf(MAX_PLFRAME_PAYLOAD),
+      d_encoded_plsc(PLSC_LEN - 1),
+      threshold_u(u_threshold),
+      threshold_l(l_threshold)
+
 {
     /* SOF and PLSC matched filter (correlator) taps: the folded (or reversed)
      * version of the target SOF and PLSC symbols */
@@ -48,6 +59,7 @@ frame_sync::frame_sync(int debug_level, uint8_t unlock_thresh)
                     { 0, -1.0 }, { 0, 1.0 },  { 0, 1.0 },  { 0, -1.0 }, { 0, 1.0 },
                     { 0, -1.0 }, { 0, 1.0 },  { 0, -1.0 }, { 0, 1.0 },  { 0, 1.0 },
                     { 0, -1.0 }, { 0, -1.0 } };
+
     std::reverse(d_sof_taps.begin(), d_sof_taps.end());
     std::reverse(d_plsc_taps.begin(), d_plsc_taps.end());
     assert(d_sof_taps.size() == SOF_CORR_LEN);
@@ -133,6 +145,7 @@ bool frame_sync::step(const gr_complex& in)
 
     /* PLSC correlation */
     gr_complex plsc_corr;
+    // correlate(d_plsc_delay_buf, d_encoded_plsc, &plsc_corr);
     if (d_sym_cnt & 1)
         correlate(d_plsc_o_buf, d_plsc_taps, &plsc_corr);
     else
@@ -181,6 +194,7 @@ bool frame_sync::step(const gr_complex& in)
 
     /* State machine */
     if (is_peak) {
+        // file << d_timing_metric;
         if (d_state == frame_sync_state_t::searching) {
             d_state = frame_sync_state_t::found;
             GR_LOG_DEBUG_LEVEL(1, "PLFRAME found");
@@ -215,12 +229,10 @@ bool frame_sync::step(const gr_complex& in)
             GR_LOG_DEBUG_LEVEL(1, "PLFRAME lock lost");
         }
     }
-
     /* Further debugging logs and symbol count reset */
     if (is_peak || peak_expected) {
         GR_LOG_DEBUG_LEVEL(3,
-                           "Sym: {:d}; SOF: {:+.1f} {:+.1f}j; PLSC: {:+.1f} "
-                           "%+.1fj",
+                           "Sym: {:d}; SOF: {:+.1f} {:+.1f}j; PLSC: {:+.1f} {:+.1f}j",
                            d_sym_cnt,
                            sof_corr.real(),
                            sof_corr.imag(),
@@ -244,10 +256,20 @@ bool frame_sync::step(const gr_complex& in)
 
 void frame_sync::set_frame_len(uint32_t len)
 {
-    GR_LOG_DEBUG_LEVEL(1, "New frame length is set:{:d}", len);
     if (len > MAX_PLFRAME_LEN)
         throw std::runtime_error("Invalid PLFRAME length");
     d_frame_len = len;
+}
+
+void frame_sync::set_plsc(const gr_complex* p_encoded_plsc)
+{
+    for (int i = 0; i < PLSC_LEN; i++) {
+        if (i == 0) {
+            continue;
+        }
+        d_encoded_plsc[i - 1] = conj(p_encoded_plsc[i]) * p_encoded_plsc[i - 1];
+    }
+    // file << "Encoded PLSC: " << d_encoded_plsc;
 }
 
 } // namespace dvbs2rx

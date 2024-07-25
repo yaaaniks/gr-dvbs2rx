@@ -3,6 +3,7 @@
 id: dvbs2rx_bbdeheader_bb
 label: BBdeheader
 category: '[Core]/Digital Television/DVB'
+flags: [python, cpp]
 
 parameters:
 -   id: standard
@@ -37,5 +38,22 @@ templates:
             ),
             ${debug_level}
         )
-
+cpp_templates:
+    includes: [
+        "#include <gnuradio/dvbs2rx/bbdeheader_bb.h>",
+        "#include <gnuradio/dvbs2rx/common.h>"
+    ]
+    declarations: 'gr::dvbs2rx::bbdeheader_bb::sptr ${id};'
+    make: |
+        this->${id} = gr::dvbs2rx::bbdeheader_bb::make(
+            gr::dvbs2rx::string_to_dvb_standard["DVB-S2"],
+            gr::dvbs2rx::string_to_dvb_framesize[${framesize}],
+            gr::dvbs2rx::string_to_dvb_code_rate[${rate}],
+            ${debug_level}
+        );
+    link: ['gnuradio-dvbs2rx']
+    translations:
+        "'": '"'
+        'True': 'true'
+        'False': 'false'
 file_format: 1

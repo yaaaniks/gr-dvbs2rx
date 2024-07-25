@@ -7,8 +7,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include "pl_defs.h"
+#include "pl_signaling.h"
 #include "gnuradio/dvbs2rx/plframer_cc.h"
+#include <gnuradio/gr_complex.h>
+#include <cmath>
 #include <cstring>
+#include <vector>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -43,7 +48,7 @@ plframer_cc_impl::plframer_cc_impl(
                 gr::io_signature::make(1, 1, sizeof(gr_complex))),
       d_debug_level(debug_level),
       d_sps(sps),
-      d_plsc_decoder_enabled(true),
+      d_plsc_decoder_enabled(false),
       d_locked(false),
       d_closed_loop(false),
       d_payload_state(payload_state_t::searching),
@@ -55,26 +60,6 @@ plframer_cc_impl::plframer_cc_impl(
       d_dummy_cnt(0)
 {
 
-    // PLS filters
-    //
-    // NOTE the "d_pls_enabled" and "expected_plsc" arrays play distinct roles:
-    //
-    // - The "d_pls_enabled" array determines whether this block shall output XFECFRAMEs
-    //   embedded on PLFRAMEs with the given PLS.
-    //
-    // - The "expected_plsc" vector specifies the distinct PLS values that can be found in
-    //   the input stream, which are equivalent to the expected PLSC (codeword) indexes to
-    //   be processed by the PLSC decoder. More specifically, the "expected_plsc" vector
-    //   holds a priori knowledge used to reduce the set of possibilities searched by the
-    //   PLSC decoder. In ACM/VCM mode, it will either contain all 128 possible DVB-S2 PLS
-    //   values, or a selected number of them. In CCM mode, it must contain a single
-    //   value, in which case the PLSC decoder is effectively disabled for simplicity.
-    //
-    // - When operating in CCM mode with multiple TS streams (MIS mode), instead of single
-    //   stream (SIS) mode, the input PLFRAME stream may contain dummy frames in addition
-    //   to the selected PLS. Similarly, in ACM/VCM mode, even if running with a single TS
-    //   stream, dummy frames must be expected and processed by the PLSC decoder). See the
-    //   second row in Table D.2 of the standard.
     std::vector<uint8_t> expected_plsc;
     expected_plsc.push_back(pls_code);
     d_pls_enabled[pls_code] = true;
@@ -82,22 +67,24 @@ plframer_cc_impl::plframer_cc_impl(
     // known), then cache the constant PLS info and simply disable the PLSC decoder. It
     // would return the same PLS for every frame anyway.
 
-    d_plsc_decoder_enabled = false;
     d_ccm_sis_pls = pls_info_t(expected_plsc[0]);
 
     std::sort(expected_plsc.begin(), expected_plsc.end());
 
+    std::vector<gr_complex> encoded_plsc{ PLSC_LEN };
+
     // Heap-allocated modules
-    d_frame_sync = new frame_sync(debug_level);
+    d_frame_sync = new frame_sync(debug_level, 3, 40, 35);
     d_plsc_decoder = new plsc_decoder(std::move(expected_plsc), debug_level);
+    d_plsc_encoder = new plsc_encoder{};
     d_freq_sync = new freq_sync(freq_est_period, debug_level);
     d_pl_descrambler = new pl_descrambler(gold_code);
 
+    d_plsc_encoder->encode(encoded_plsc.data(), pls_code);
     // When the PLSC decoder is disabled, set a fixed PLFRAME length on the frame
     // synchronizer instead of updating the length for every detected frame.
-    if (!d_plsc_decoder_enabled) {
-        d_frame_sync->set_frame_len(d_ccm_sis_pls.plframe_len);
-    }
+    d_frame_sync->set_frame_len(d_ccm_sis_pls.plframe_len);
+    d_frame_sync->set_plsc(encoded_plsc.data());
 
     /* Message port */
     message_port_register_out(d_port_id);
@@ -117,6 +104,7 @@ plframer_cc_impl::~plframer_cc_impl()
 {
     delete d_frame_sync;
     delete d_plsc_decoder;
+    delete d_plsc_encoder;
     delete d_freq_sync;
     delete d_pl_descrambler;
 }
@@ -491,24 +479,16 @@ void plframer_cc_impl::handle_plheader(uint64_t abs_sof_idx,
      * the loss of a few frames until a better estimate is obtained.
      **/
     const bool was_coarse_corrected = frame_info.coarse_corrected; // last state
-    const bool est_coarse_with_full_plheader =
-        was_coarse_corrected || !d_plsc_decoder_enabled;
     bool new_coarse_est;
-    if (!est_coarse_with_full_plheader) {
-        new_coarse_est = d_freq_sync->estimate_coarse(p_plheader, false /* SOF only */);
-        frame_info.coarse_corrected = d_freq_sync->is_coarse_corrected();
-    }
 
     frame_info.pls = d_ccm_sis_pls;
 
     // As mentioned earlier, estimate the coarse frequency offset here (after the PLSC
     // decoding) if the frequency synchronizer was already coarse-corrected before or if
     // the PLSC decoder is disabled (when the PLS is known a priori).
-    if (est_coarse_with_full_plheader) {
-        new_coarse_est = d_freq_sync->estimate_coarse(
-            p_plheader, true /* full PLHEADER */, frame_info.pls.plsc);
-        frame_info.coarse_corrected = d_freq_sync->is_coarse_corrected();
-    }
+    new_coarse_est = d_freq_sync->estimate_coarse(
+        p_plheader, true /* full PLHEADER */, frame_info.pls.plsc);
+    frame_info.coarse_corrected = d_freq_sync->is_coarse_corrected();
 
     // Save the coarse frequency offset estimate so that we can know the offset affecting
     // each frame. The frequency synchronizer object only tracks the most recent estimate.
@@ -667,7 +647,8 @@ int plframer_cc_impl::handle_payload(int noutput_items,
             float pilot_phase = d_freq_sync->get_pilot_phase(d_idx.i_pilot_blk - 1);
             d_phase_corr = gr_expj(-pilot_phase);
         }
-
+        d_phase_corr = gr_complex{ std::round(d_phase_corr.real()),
+                                   std::round(d_phase_corr.imag()) };
         // De-rotate the slot sequence
         volk_32fc_s32fc_x2_rotator_32fc(
             out + n_produced, p_slot_seq, expj_phase_inc, &d_phase_corr, slot_seq_len);

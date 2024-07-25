@@ -14,6 +14,8 @@
 #include <gnuradio/dvbs2rx/api.h>
 #include <gnuradio/gr_complex.h>
 #include <volk/volk_alloc.hh>
+#include <fstream>
+#include <ios>
 
 const double fine_foffset_corr_range = 3.3875e-4;
 /* The pilot-mode fine frequency offset estimate is based on the phase difference
@@ -147,7 +149,7 @@ public:
      * \param debug_level Debugging log level (0 disables logs).
      */
     freq_sync(unsigned int period, int debug_level);
-
+    ~freq_sync() = default;
     /**
      * \brief Data-aided coarse frequency offset estimation.
      *

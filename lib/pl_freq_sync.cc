@@ -17,6 +17,8 @@
 #include <gnuradio/math.h>
 #include <boost/format.hpp>
 #include <cassert>
+#include <iostream>
+#include <stdexcept>
 
 namespace gr {
 namespace dvbs2rx {
@@ -210,7 +212,7 @@ float freq_sync::estimate_phase_data_aided(const gr_complex* in,
     gr_complex ck_sum = 0;
     for (unsigned int i = 0; i < len; i++)
         ck_sum += pilot_mod_rm[i];
-
+    // ck_sum /= len;
     return gr::fast_atan2f(ck_sum);
 }
 
@@ -240,6 +242,7 @@ float freq_sync::estimate_pilot_phase(const gr_complex* in, int i_blk)
     gr_complex ck_sum = 0;
     for (int i = 0; i < PILOT_BLK_LEN; i++)
         ck_sum += in[i];
+    // ck_sum /= PILOT_BLK_LEN;
     float avg_phase = gr::fast_atan2f(ck_sum) - (GR_M_PI / 4.0);
 
     /* Keep it within -pi to pi */
@@ -264,12 +267,13 @@ void freq_sync::estimate_fine_pilot_mode(const gr_complex* p_plheader,
         p_plheader + (PLHEADER_LEN - PILOT_BLK_LEN),
         &plheader_conj[plsc * PLHEADER_LEN] + (PLHEADER_LEN - PILOT_BLK_LEN),
         PILOT_BLK_LEN);
-
     // Fill in the average phase of the descrambled pilot blocks
     for (int i = 0; i < n_pilot_blks; i++) {
         const gr_complex* p_pilots =
             p_payload + ((i + 1) * PILOT_BLK_PERIOD) - PILOT_BLK_LEN;
+        // file << "Current pilot block:\n" << p_pilots;
         angle_pilot[i + 1] = estimate_pilot_phase(p_pilots, i);
+        // file << std::endl << "Pilot phase: " << angle_pilot[i + 1] << std::endl;
     }
 
     /* Angle differences */

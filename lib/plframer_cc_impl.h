@@ -18,6 +18,7 @@
 #include "plsync_cc_impl.h"
 #include "gnuradio/dvbs2rx/plframer_cc.h"
 #include <gnuradio/dvbs2rx/plsync_cc.h>
+#include <gnuradio/gr_complex.h>
 #include <volk/volk_alloc.hh>
 #include <array>
 #include <queue>
@@ -70,8 +71,8 @@ private:
     frame_sync* d_frame_sync;         /**< frame synchronizer */
     freq_sync* d_freq_sync;           /**< frequency synchronizer */
     plsc_decoder* d_plsc_decoder;     /**< PLSC decoder */
+    plsc_encoder* d_plsc_encoder;     /**< PLSC encoder */
     pl_descrambler* d_pl_descrambler; /**< PL descrambler */
-
     /**
      * @brief Save the tags in the current work range within the local queue
      *
