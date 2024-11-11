@@ -35,11 +35,11 @@ agc_loop_xx_impl::agc_loop_xx_impl(int vlen,
                                    float sw_agc_gain,
                                    float sw_agc_max_gain)
     : gr::sync_block("agc_loop_xx",
-                     io_signature::make(1, 1, sizeof(float)),
+                     io_signature::make(1, 1, sizeof(float) * vlen),
                      io_signature::make(0, 0, 0)),
       d_current_rf_gain(0),
       d_sw_agc_gain(0),
-      d_buffer(size, 0)
+      d_buffer(vlen, 0)
 {
 
     /* Message port */
@@ -56,16 +56,16 @@ int agc_loop_xx_impl::work(int noutput_items,
                            gr_vector_const_void_star& input_items,
                            gr_vector_void_star& output_items)
 {
-    auto input = reinterpret_cast<const float*>(input_items.data());
+    auto input = reinterpret_cast<const float*>(input_items[0]);
 
-    int size = input_items.size();
+    int size = d_buffer.size();
 
     std::memcpy(d_buffer.data(), input, size * sizeof(float));
 
     d_current_rf_gain = calculate_rf_gain(input);
     /**< ?Dummy comparison of RF gain with got parameters and set it on RSP */
-    if (d_dummy_cnt++ == 100) {
-        d_logger->debug("Current size: {:+f}", size);
+    if (d_dummy_cnt++ == 300) {
+        d_logger->debug("Current size: {:+d}", size);
         d_dummy_cnt = 0;
         control_rsp_device();
     }
@@ -82,8 +82,8 @@ void agc_loop_xx_impl::control_rsp_device()
     pmt::pmt_t msg = pmt::make_dict();
 
     msg = pmt::dict_add(msg, if_gain_key, pmt::from_double(d_current_rf_gain));
-    msg = pmt::dict_add(
-        msg, lna_state_key, pmt::from_double(static_cast<double>(d_hw_att_state)));
+    double att_state = static_cast<double>(d_hw_att_state);
+    msg = pmt::dict_add(msg, lna_state_key, pmt::from_double(att_state));
 
     message_port_pub(d_port_id, msg);
 }

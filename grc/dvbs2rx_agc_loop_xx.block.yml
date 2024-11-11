@@ -12,14 +12,14 @@ flags: [python, cpp]
     # hide: part
 
 parameters:
-    - id: hw_agc_if_gain
-      label: Hardware AGC IF gain
-      dtype: real
-      default: 1e-4
     - id: vlen
       label: Vector Length
       dtype: int
       default: '1'
+    - id: hw_agc_if_gain
+      label: Hardware AGC IF gain
+      dtype: real
+      default: 1e-4
       hide: ${ 'part' if vlen == 1 else 'none' }
     - id: hw_agc_lna_state
       label: Hardware AGC LNA state
