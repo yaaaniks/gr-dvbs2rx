@@ -21,7 +21,7 @@ install(FILES
     common.h
     symbol_sync_cc.h
     xfecframe_demapper_cb.h
-    # plframer_cc.h
+    # frame_sync_cc.h
     agc_loop_xx.h
     DESTINATION include/gnuradio/dvbs2rx
 )

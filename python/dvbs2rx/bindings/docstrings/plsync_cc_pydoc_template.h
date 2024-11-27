@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Free Software Foundation, Inc.
+ * Copyright 2024 Free Software Foundation, Inc.
  *
  * This file is part of GNU Radio
  *
@@ -18,7 +18,10 @@
 static const char* __doc_gr_dvbs2rx_plsync_cc = R"doc()doc";
 
 
-static const char* __doc_gr_dvbs2rx_plsync_cc_plsync_cc = R"doc()doc";
+static const char* __doc_gr_dvbs2rx_plsync_cc_plsync_cc_0 = R"doc()doc";
+
+
+static const char* __doc_gr_dvbs2rx_plsync_cc_plsync_cc_1 = R"doc()doc";
 
 
 static const char* __doc_gr_dvbs2rx_plsync_cc_make = R"doc()doc";

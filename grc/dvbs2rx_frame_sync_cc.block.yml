@@ -1,17 +1,17 @@
-id: dvbs2rx_plframer_cc
+id: dvbs2rx_frame_sync_cc
 label: DVB-S2 PL Framer
 category: "[Core]/Digital Television/DVB-S2"
 flags: [python, cpp]
 
 templates:
     imports: from gnuradio import dvbs2rx
-    make: dvbs2rx.plframer_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
+    make: dvbs2rx.frame_sync_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
 
 cpp_templates:
-    includes: ["#include <gnuradio/dvbs2rx/plframer_cc.h>"]
-    declarations: "gr::dvbs2rx::plframer_cc::sptr ${id};"
+    includes: ["#include <gnuradio/dvbs2rx/frame_sync_cc.h>"]
+    declarations: "gr::dvbs2rx::frame_sync_cc::sptr ${id};"
     make: |
-        this->${id} = gr::dvbs2rx::plframer_cc::make(
+        this->${id} = gr::dvbs2rx::frame_sync_cc::make(
             ${gold_code}, 
             ${freq_est_period}, 
             ${sps}, 
@@ -59,8 +59,5 @@ outputs:
       dtype: complex
       vlen: 1
       optional: 0
-    - domain: message
-      id: corr
-      optional: true
 
 file_format: 1

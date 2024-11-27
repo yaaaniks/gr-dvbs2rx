@@ -12,6 +12,7 @@
 
 #include <gnuradio/block.h>
 #include <gnuradio/dvbs2rx/api.h>
+#include <cstdint>
 
 namespace gr {
 namespace dvbs2rx {
@@ -49,16 +50,8 @@ public:
      * \param freq_est_period (int) Freq. offset estimation period in frames.
      * \param sps (double) Oversampling ratio at the input to the upstream MF.
      * \param debug_level (int) Debug level.
-     * \param acm_vcm (bool) Whether running in ACM/VCM mode. Determines whether the PLS
+     * \param pls_code (bool) Whether running in ACM/VCM mode. Determines whether the PLS
      * filter can include multiple options.
-     * \param multistream (bool) Whether the input signal carries multiple MPEG transport
-     * streams (MIS mode). Determines whether dummy PLFRAMEs are expected in the received
-     * signal, even if operating in CCM mode (refer to Table D.2 of the standard).
-     * \param pls_filter_lo (uint64_t) Lower 64 bits of the PLS filter bitmask. A value of
-     * 1 in the n-th position indicates PLS "n" (for n in 0 to 63) should be enabled.
-     * \param pls_filter_hi (uint64_t) Upper 64 bits of the PLS filter bitmask. A value of
-     * 1 in the n-th position indicates PLS "n" (for n in 64 to 127) should be enabled.
-     *
      * \note When `acm_vcm=false`, the constructor throws an exception if `pls_filter_lo`
      * and `pls_filter_hi` collectively select more than one PLS value (i.e., if their
      * aggregate population count is greater than one).
@@ -76,10 +69,7 @@ public:
                      int freq_est_period,
                      double sps,
                      int debug_level,
-                     bool acm_vcm,
-                     bool multistream,
-                     uint64_t pls_filter_lo,
-                     uint64_t pls_filter_hi);
+                     int pls_code);
 
     /*!
      * \brief Get the current frequency offset estimate.

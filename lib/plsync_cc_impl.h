@@ -117,9 +117,7 @@ private:
 
     // Constant PLS info used in CCM/SIS mode
     pls_info_t d_ccm_sis_pls;
-
-    const pmt::pmt_t d_port_id = pmt::mp("rotator_phase_inc");
-
+    
     /* Objects */
     frame_sync* d_frame_sync;         /**< frame synchronizer */
     freq_sync* d_freq_sync;           /**< frequency synchronizer */
@@ -262,10 +260,7 @@ public:
                    int freq_est_period,
                    double sps,
                    int debug_level,
-                   bool acm_vcm,
-                   bool multistream,
-                   uint64_t pls_filter_lo,
-                   uint64_t pls_filter_hi);
+                   int pls_code);
     ~plsync_cc_impl();
 
     // Where all the action really happens

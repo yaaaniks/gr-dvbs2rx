@@ -10,7 +10,6 @@
 #define AGC_LOOP_XX_H_INCLUDED
 
 #include <gnuradio/dvbs2rx/api.h>
-#include <gnuradio/sdrplay3/rsp1.h>
 #include <gnuradio/sync_block.h>
 #include <memory>
 

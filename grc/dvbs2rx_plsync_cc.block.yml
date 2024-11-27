@@ -1,13 +1,12 @@
 id: dvbs2rx_plsync_cc
-label: DVB-S2 PL Sync
+label: Frame Sync
 category: "[Core]/Digital Television/DVB-S2"
 flags: [python, cpp]
 
 templates:
   imports: from gnuradio import dvbs2rx
   make:
-    dvbs2rx.plsync_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level},
-    ${acm_vcm}, ${multistream}, ${pls_filter_lo}, ${pls_filter_hi})
+    dvbs2rx.plsync_cc(${gold_code}, ${freq_est_period}, ${sps}, ${debug_level}, ${pls_code})
 cpp_templates:
   includes: ["#include <gnuradio/dvbs2rx/plsync_cc.h>"]
   declarations: "gr::dvbs2rx::plsync_cc::sptr ${id};"
@@ -17,10 +16,7 @@ cpp_templates:
         ${freq_est_period}, 
         ${sps}, 
         ${debug_level},
-        ${acm_vcm}, 
-        ${multistream}, 
-        ${pls_filter_lo}, 
-        ${pls_filter_hi}
+        ${pls_code}
     );
   link: ["gnuradio-dvbs2rx"]
   translations:
@@ -45,22 +41,10 @@ parameters:
     label: Debug Level
     dtype: int
     default: 0
-  - id: acm_vcm
-    label: ACM/VCM mode
-    dtype: bool
-    default: "True"
-  - id: multistream
-    label: Multi stream (MIS)
-    dtype: bool
-    default: "True"
-  - id: pls_filter_lo
-    label: PLS filter (LSB)
-    dtype: hex
-    default: "0xFFFFFFFFFFFFFFFF"
-  - id: pls_filter_hi
-    label: PLS filter (MSB)
-    dtype: hex
-    default: "0xFFFFFFFFFFFFFFFF"
+  - id: pls_code
+    label: PLS Code 
+    dtype: int
+    default: 124
 
 inputs:
   - label: in
@@ -75,8 +59,5 @@ outputs:
     dtype: complex
     vlen: 1
     optional: 0
-  - domain: message
-    id: rotator_phase_inc
-    optional: true
 
 file_format: 1

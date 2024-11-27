@@ -21,23 +21,13 @@
 namespace gr {
 namespace dvbs2rx {
 
-plsync_cc::sptr plsync_cc::make(int gold_code,
-                                int freq_est_period,
-                                double sps,
-                                int debug_level,
-                                bool acm_vcm,
-                                bool multistream,
-                                uint64_t pls_filter_lo,
-                                uint64_t pls_filter_hi)
+plsync_cc::sptr plsync_cc::make(int gold_code, int freq_est_period, double sps, int debug_level, int pls_code)
 {
     return gnuradio::get_initial_sptr(new plsync_cc_impl(gold_code,
                                                          freq_est_period,
                                                          sps,
                                                          debug_level,
-                                                         acm_vcm,
-                                                         multistream,
-                                                         pls_filter_lo,
-                                                         pls_filter_hi));
+                                                         pls_code));
 }
 
 
@@ -48,16 +38,13 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
                                int freq_est_period,
                                double sps,
                                int debug_level,
-                               bool acm_vcm,
-                               bool multistream,
-                               uint64_t pls_filter_lo,
-                               uint64_t pls_filter_hi)
+                               int pls_code)
     : gr::block("plsync_cc",
                 gr::io_signature::make(1, 1, sizeof(gr_complex)),
                 gr::io_signature::make(1, 1, sizeof(gr_complex))),
       d_debug_level(debug_level),
       d_sps(sps),
-      d_acm_vcm(acm_vcm),
+      d_acm_vcm(true),
       d_plsc_decoder_enabled(true),
       d_locked(false),
       d_closed_loop(false),
@@ -74,10 +61,14 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
     // NOTE: a popcnt of 2 is ok in CCM if the target PLSs differ on the pilots flag only.
     // This is verified in the sequel after the PLS filters are parsed. On the other hand,
     // a popcnt greater than 2 is certainly a problem in CCM mode.
+    uint64_t pls_filter_lo{0xFFFFFFFFFFFFFFFF};
+    uint64_t pls_filter_hi{0xFFFFFFFFFFFFFFFF};
+    
     uint64_t popcnt1, popcnt2;
+
     volk_64u_popcnt(&popcnt1, pls_filter_lo);
     volk_64u_popcnt(&popcnt2, pls_filter_hi);
-    if (!acm_vcm && (popcnt1 + popcnt2) > 2)
+    if (!d_acm_vcm && (popcnt1 + popcnt2) > 2)
         throw std::runtime_error(
             "PLS filter configured for multiple MODCOD or frame sizes in CCM mode");
     if ((popcnt1 + popcnt2) == 0)
@@ -115,7 +106,7 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
 
     // In CCM mode, up to two PLSs are allowed, as long as they refer to the same MODCOD
     // and frame size (differring only on the pilots flag).
-    if (!acm_vcm && expected_plsc.size() == 2) {
+    if (!d_acm_vcm && expected_plsc.size() == 2) {
         pls_info_t info1(expected_plsc[0]);
         pls_info_t info2(expected_plsc[1]);
         if (info1.modcod != info2.modcod ||
@@ -130,7 +121,7 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
     // Dummy PLFRAMES have modcod=0, so the corresponding PLS should be 0. However, there
     // are no guarantees that the Tx sets short_fecframe=0 and pilots=0 when sending dummy
     // frames, so PLS values from 0 to 3 can be expected (TODO: confirm).
-    if (multistream || acm_vcm) {
+    if (d_acm_vcm) {
         for (uint8_t pls = 0; pls < 4; pls++) {
             // Add if not enabled in the pls_filter already:
             if (!(pls_filter_lo & (1 << pls))) {
@@ -158,9 +149,6 @@ plsync_cc_impl::plsync_cc_impl(int gold_code,
     if (!d_plsc_decoder_enabled) {
         d_frame_sync->set_frame_len(d_ccm_sis_pls.plframe_len);
     }
-
-    /* Message port */
-    message_port_register_out(d_port_id);
 
     /* This block only outputs data symbols, while pilot symbols are
      * retained. So until we find the need, tags are not propagated */
@@ -391,90 +379,6 @@ void plsync_cc_impl::control_rotator_freq(uint64_t abs_sof_idx,
                                           double rot_freq_adj,
                                           bool ref_is_past_frame)
 {
-    // By default, schedule the phase increment change to take place at the start of the
-    // next frame (the next SOF). This increment change may arrive at the rotator after
-    // the target sample index has already been processed, in which case the rotator skips
-    // the update, but this should be fine. There is little performance penalty in missing
-    // some phase increment changes. The payload handler applies a feed-forward fine
-    // frequency correction, which takes care of the residual frequency offset disturbing
-    // the frame. Meanwhile, the correction sent to the external rotator is only meant to
-    // track the incoming carrier so that the residual frequency offset remains within the
-    // fine estimation range. See more comments on the handle_payload function.
-    const uint64_t target_sof_idx = abs_sof_idx + plframe_len;
-
-    // Assume the upstream rotator lies before a matched filter and, hence, operates on
-    // the sample stream (i.e. on samples, not symbols). Use the known oversampling ratio
-    // and the calibrated symbol-spaced tag delay to schedule the phase increment update.
-    uint64_t target_samp_idx = d_sps * (target_sof_idx + d_rot_ctrl.tag_delay);
-
-    // Prevent two frequency corrections at the same sample offset. The scenario
-    // where this becomes possible is as follows:
-    //
-    // - The frequency synchronizer has achieved the coarse-corrected state and
-    //   the PLFRAMEs have pilots.
-    //
-    // - A new SOF comes and the coarse estimate at this SOF exceeds the fine
-    //   estimation range. Hence, at this point the frequency synchronizer will
-    //   toggle its coarse corrected state back to false and the PLHEADER
-    //   handler will send the new coarse estimate to the rotator.
-    //
-    // - Next, the payload handler processes the PLFRAME preceding the SOF that
-    //   triggered the coarse correction. The PLFRAME has pilots, and it came
-    //   while the synchronizer was still coarse corrected (before the new
-    //   PLHEADER). Hence, the payload handler calls for a new fine offset
-    //   estimate, which is also sent to the rotator.
-    //
-    // In this case, both updates would be applicable to the same offset. By
-    // preventing this scenario here, only the first update would be applied,
-    // which, in this example, is the update due to the new coarse estimate.
-    if (d_rot_ctrl.update_map.count(target_samp_idx) > 0)
-        return;
-
-    // Sanity check
-    if (d_rot_ctrl.current.idx < d_rot_ctrl.past.idx ||
-        target_samp_idx < d_rot_ctrl.current.idx) {
-        d_logger->warn("Unexpected rotator control index order: target={:d}, "
-                       "current={:d}, past={:d}",
-                       target_samp_idx,
-                       d_rot_ctrl.current.idx,
-                       d_rot_ctrl.past.idx);
-    }
-    // NOTE: the "current" and "past" indexes will be equal on consecutive frames that
-    // don't experience any frequency correction.
-
-    // Cumulative frequency offset estimate
-    //
-    // NOTE: Extra caution is required when accumulating the new frequency offset estimate
-    // to a previous estimate. The reference depends on which frame was used to generate
-    // the new frequency offset estimate. Refer to the comments on this function's
-    // declaration (on plsync_cc_impl.h). Also, note the rotator's rotating frequency is
-    // the negative of the estimated frequency offset since it corrects the offset.
-    const double ref_rot_freq =
-        (ref_is_past_frame) ? d_rot_ctrl.past.freq : d_rot_ctrl.current.freq;
-    const double prev_cum_freq_offset = -ref_rot_freq;
-    d_cum_freq_offset = prev_cum_freq_offset + rot_freq_adj;
-
-    // Rotator phase increment that should start taking effect on the next frame:
-    const double phase_inc = -d_cum_freq_offset * 2.0 * GR_M_PI / d_sps;
-    d_rot_ctrl.update_map.emplace(std::piecewise_construct,
-                                  std::forward_as_tuple(target_samp_idx),
-                                  std::forward_as_tuple(phase_inc, target_sof_idx));
-
-    // Send the corresponding phase increment to the rotator block
-    static const pmt::pmt_t inc_key = pmt::intern("inc");
-    static const pmt::pmt_t offset_key = pmt::intern("offset");
-    pmt::pmt_t msg = pmt::make_dict();
-    msg = pmt::dict_add(msg, inc_key, pmt::from_double(phase_inc));
-    msg = pmt::dict_add(msg, offset_key, pmt::from_uint64(target_samp_idx));
-    message_port_pub(d_port_id, msg);
-
-    GR_LOG_DEBUG_LEVEL(2, "Cumulative frequency offset: {:g}", d_cum_freq_offset);
-    GR_LOG_DEBUG_LEVEL(3,
-                       "Rotator ctrl - Sent New Phase Inc: {:+f}; Target SOF Index: "
-                       "{:d}; Rot Sample Offset: {:d}",
-                       phase_inc,
-                       target_sof_idx,
-                       target_samp_idx);
 }
 
 void plframe_idx_t::step(uint16_t n_slots, bool has_pilots)
